@@ -99,7 +99,7 @@ function verifyCyberSourceSignature(values, secret, signedFields, providedSignat
 }
 
 function verifyPersonaWebhook(rawBody, headers, secret) {
-  const header = headers && (headers['persona-signature'] || headers['Persona-Signature'] || headers['persona-signature'] || headers['x-persona-signature']);
+  const header = headers && (headers['persona-signature'] || headers['Persona-Signature'] || headers['x-persona-signature']);
   if (!header) return false;
   const parts = String(header).split(',').reduce((acc, part) => {
     const [key, value] = part.split('=');

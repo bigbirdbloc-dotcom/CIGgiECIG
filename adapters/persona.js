@@ -1,11 +1,12 @@
-const { verifyPersonaWebhook, verifyVeriffWebhook } = require('../extra');
+const crypto = require('crypto');
+
+function verifyWebhook(rawBody, secret, signature) {
+  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature.toLowerCase()));
+}
 
 module.exports = {
-  verifyPersonaWebhook: (body, headers, secret) => {
-    const out = require('../extra').verifyPersonaWebhook(body, headers, secret);
-    return out;
-  },
-  verifyVeriffWebhook: (body, signature, secret) => require('../extra').verifyVeriffWebhook(body, signature, secret),
+  verifyWebhook,
   status: 'verified',
   getStatus: () => ({ provider: 'Persona', status: 'verified', note: 'Webhooks verified with headers and raw body.' })
 };

@@ -2,7 +2,6 @@ const express = require('express');
 const cookieParser = require('cookie-parser');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 
 const { generateArt } = require('./genart');
 const { ensureSeed } = require('./seed');
@@ -15,11 +14,9 @@ const {
   verifyPersonaWebhook,
   verifyVeriffWebhook,
   verifyCyberSourceSignature,
-  createCyberSourceSignature,
-  money,
-  safeParseJson
+  money
 } = require('./extra');
-const { persona, veriff, agechecker, payment } = require('./adapters');
+const { payment } = require('./adapters');
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -76,7 +73,7 @@ function requireAdult(req, res, next) {
 }
 app.use(requireAdult);
 
-function renderPage(title, content, options = {}) {
+function renderPage(title, content) {
   return `<!doctype html>
   <html lang="en">
     <head>
@@ -136,7 +133,7 @@ app.get('/', (req, res) => {
       <a class="ghost" href="/admin">Admin</a>
     </div>
     <section class="section">
-      <div class="status">21+ only • wrestling with the vapor wave</div>
+      <div class="status">21+ only • warped storefront</div>
       <div class="grid">${productCards()}</div>
     </section>
   `;

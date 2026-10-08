@@ -1,4 +1,5 @@
 const assert = require('assert');
+const crypto = require('crypto');
 const { computePrice, isAgeVerified, productStatus, isAllowedZip, verifyPersonaWebhook, verifyVeriffWebhook, createCyberSourceSignature, verifyCyberSourceSignature } = require('./extra');
 
 function run() {
@@ -16,13 +17,13 @@ function run() {
   const secret = 'persona-secret';
   const rawBody = '{"event":"inquiry.started"}';
   const ts = '1700000000';
-  const personaSig = require('crypto').createHmac('sha256', secret).update(`${ts}.${rawBody}`).digest('hex');
+  const personaSig = crypto.createHmac('sha256', secret).update(`${ts}.${rawBody}`).digest('hex');
   const personaHeaders = { 'persona-signature': `t=${ts},v1=${personaSig}` };
   assert.strictEqual(verifyPersonaWebhook(rawBody, personaHeaders, secret), true, 'Persona raw-body HMAC should validate');
 
   const veriffSecret = 'veriff-secret';
   const veriffBody = JSON.stringify({ verification: { id: 'abc123', decision: 'approved' } });
-  const veriffSig = require('crypto').createHmac('sha256', veriffSecret).update(veriffBody).digest('hex');
+  const veriffSig = crypto.createHmac('sha256', veriffSecret).update(veriffBody).digest('hex');
   assert.strictEqual(verifyVeriffWebhook(veriffBody, veriffSig, veriffSecret), true, 'Veriff webhook should accept valid HMAC');
 
   const signedNames = 'access_key,profile_id,transaction_uuid,signed_field_names,amount';
