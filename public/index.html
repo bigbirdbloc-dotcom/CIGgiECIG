@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CIGgiECIG — Street Art Energy</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/effects.css">
+  <style>
+    body {
+      overflow-x: hidden;
+    }
+    .shell {
+      position: relative;
+      z-index: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand" data-glitch>CIGgiECIG</div>
+      <nav class="nav">
+        <a href="/" style="transition: all 0.3s ease;" onmouseover="this.style.color='#ff2bd6'; this.style.textShadow='0 0 10px #ff2bd6';" onmouseout="this.style.color='#fff'; this.style.textShadow='none';">Home</a>
+        <a href="/shop" style="transition: all 0.3s ease;" onmouseover="this.style.color='#00f0ff'; this.style.textShadow='0 0 10px #00f0ff';" onmouseout="this.style.color='#fff'; this.style.textShadow='none';">Shop</a>
+        <a href="/checkout" style="transition: all 0.3s ease;" onmouseover="this.style.color='#b6ff00'; this.style.textShadow='0 0 10px #b6ff00';" onmouseout="this.style.color='#fff'; this.style.textShadow='none';">Cart</a>
+        <a href="/admin" style="transition: all 0.3s ease;" onmouseover="this.style.color='#ff8a1c'; this.style.textShadow='0 0 10px #ff8a1c';" onmouseout="this.style.color='#fff'; this.style.textShadow='none';">Admin</a>
+      </nav>
+    </header>
+    <main id="app-content"></main>
+  </div>
+  <script src="/app.js"></script>
+  <script src="/audio.js"></script>
+</body>
+</html>
