@@ -1,8 +1,11 @@
 const crypto = require('crypto');
 
 function verifyWebhook(rawBody, secret, signature) {
+  if (!secret || typeof signature !== 'string' || !/^[a-f0-9]{64}$/i.test(signature)) return false;
   const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature.toLowerCase()));
+  const expectedBuffer = Buffer.from(expected, 'hex');
+  const providedBuffer = Buffer.from(signature, 'hex');
+  return expectedBuffer.length === providedBuffer.length && crypto.timingSafeEqual(expectedBuffer, providedBuffer);
 }
 
 module.exports = {
