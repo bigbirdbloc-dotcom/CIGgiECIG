@@ -1,0 +1,82 @@
+name: Deploy CIGgiECIG to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate art assets
+        run: |
+          node genart.js 7
+          node public/genart-logo.js
+
+      - name: Run tests
+        run: |
+          node diag.js
+          node smoke.js
+        continue-on-error: false
+
+      - name: Build site
+        run: |
+          mkdir -p dist/public
+          cp public/*.html dist/public/
+          cp public/*.css dist/public/
+          cp public/*.js dist/public/
+          cp public/*.svg dist/public/ 2>/dev/null || true
+          cp -r public/tiles dist/public/ 2>/dev/null || true
+          cp logo.svg dist/public/ 2>/dev/null || true
+          echo '{ "port": 3000 }' > dist/config.json
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: 'dist/public'
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: always()
+    steps:
+      - name: Deployment Status
+        run: |
+          echo "🎨 CIGgiECIG deployed to GitHub Pages"
+          echo "📍 URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+          echo "✅ Status: ${{ job.status }}"
+          
