@@ -43,7 +43,7 @@ function run() {
   const sig = createCyberSourceSignature(values, 'cybs-secret', signedNames);
   assert.strictEqual(verifyCyberSourceSignature(values, 'cybs-secret', signedNames, sig), true, 'CyberSource form signature should verify');
 
-  const tampered = { ...values, amount: '999.00' };
+  const tampered = { ...values, amount: '1.00' };
   assert.strictEqual(verifyCyberSourceSignature(tampered, 'cybs-secret', signedNames, sig), false, 'tampered values should fail');
 
   console.log('smoke.js: 40 passed, 0 failed');
