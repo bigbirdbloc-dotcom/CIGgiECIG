@@ -19,11 +19,13 @@ function run() {
     assert.strictEqual(extra.verifyHmac(body, null, secret), false);
   });
 
-  check('Persona adapter rejects malformed signatures without throwing', () => {
+  check('Persona adapter parses timestamped signatures and rejects malformed input', () => {
     const body = '{"data":{"id":"test"}}';
     const secret = 'unit-test-secret';
-    const valid = crypto.createHmac('sha256', secret).update(body).digest('hex');
-    assert.strictEqual(PersonaAdapter.verifyWebhook(body, secret, valid), true);
+    const timestamp = '1700000000';
+    const valid = crypto.createHmac('sha256', secret).update(timestamp + '.' + body).digest('hex');
+    const header = 't=' + timestamp + ',v1=' + valid;
+    assert.strictEqual(PersonaAdapter.verifyWebhook(body, secret, header), true);
     assert.strictEqual(PersonaAdapter.verifyWebhook(body, secret, 'deadbeef'), false);
     assert.strictEqual(PersonaAdapter.verifyWebhook(body, secret, null), false);
   });
