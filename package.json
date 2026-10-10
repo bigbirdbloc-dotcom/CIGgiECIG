@@ -9,7 +9,7 @@
     "genart": "node genart.js 7",
     "smoke": "node smoke.js",
     "diag": "node diag.js",
-    "test": "node smoke.js && node diag.js && node tests/admin-auth.test.js && node tests/ai-integration.test.js"
+    "test": "node smoke.js && node diag.js && node tests/admin-auth.test.js && node tests/webhook-signatures.test.js && node tests/ai-integration.test.js"
   },
   "dependencies": {
     "cookie-parser": "^1.4.7",
