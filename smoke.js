@@ -3,8 +3,14 @@ const crypto = require('crypto');
 const { computePrice, isAgeVerified, productStatus, isAllowedZip, verifyPersonaWebhook, verifyVeriffWebhook, createCyberSourceSignature, verifyCyberSourceSignature } = require('./extra');
 
 function run() {
-  assert.strictEqual(isAgeVerified('2000-01-01'), true, 'age gate should accept 21+');
-  assert.strictEqual(isAgeVerified('2005-01-01'), false, 'age gate should reject under 21');
+  const ageDate = (yearsAgo) => {
+    const date = new Date();
+    date.setHours(12, 0, 0, 0);
+    date.setFullYear(date.getFullYear() - yearsAgo);
+    return date.toISOString().slice(0, 10);
+  };
+  assert.strictEqual(isAgeVerified(ageDate(22)), true, 'age gate should accept an adult');
+  assert.strictEqual(isAgeVerified(ageDate(20)), false, 'age gate should reject a minor');
 
   const product = { name: 'draft', cost: 12, fda_order_number: '' };
   assert.strictEqual(productStatus(product), 'blocked', 'product should be blocked without FDA order number');
