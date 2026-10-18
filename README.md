@@ -13,13 +13,17 @@
 ## Quick Start
 
 ```bash
-cd ~/ciggiecig
+cp .env.example .env
+# Edit .env; set ADMIN_PASS and ADMIN_SESSION_SECRET before login.
+set -a
+. ./.env
+set +a
 npm install
 npm run seed
 npm start
 ```
 
-Then visit `http://localhost:3000` and log into admin at `/admin` with password from `ADMIN_PASS`.
+Then visit `http://localhost:3000`. Admin authentication requires both `ADMIN_PASS` and `ADMIN_SESSION_SECRET`; see `docs/SETUP_GUIDE.md` for a session-cookie example.
 
 ## Features
 
@@ -38,6 +42,7 @@ Then visit `http://localhost:3000` and log into admin at `/admin` with password 
 
 ```bash
 ADMIN_PASS='your-secure-password'
+ADMIN_SESSION_SECRET='a-separate-random-signing-secret'
 SHIP_STATES=WA,OR,CA
 LOCAL_ZIPS=99201,99202,99203,99204,99208
 STORE_ADDR='Your Shop Address, Spokane, WA'
@@ -56,6 +61,12 @@ PAY_PROVIDER=cybersource
 CYBS_ACCESS_KEY=xxx
 CYBS_PROFILE_ID=xxx
 CYBS_SECRET_KEY=xxx
+
+# Optional AI chat
+AI_API_URL=https://api.openai.com/v1/chat/completions
+AI_API_KEY=
+AI_MODEL=
+AI_TIMEOUT_MS=15000
 ```
 
 ## File Structure
@@ -93,13 +104,23 @@ node smoke.js
 
 # Adapter diagnostics
 node diag.js
+
+# Full suite (including auth, webhook-signature, and AI integration tests)
+npm test
 ```
 
 ## Deployment
 
-Works on Termux, Replit, or Linux. Node 16+, 512 MB RAM minimum.
+Requires Node.js 20+ for the supported production baseline. A non-root Docker image and health check are included:
 
-For production: use Postgres, add Cloudflare protection, verify host accepts tobacco commerce.
+```bash
+docker build -t ciggiecig:release .
+docker run --rm -p 3000:3000 -e NODE_ENV=production -e ADMIN_PASS='replace-me' -e ADMIN_SESSION_SECRET='use-a-different-random-secret' -v ciggiecig-data:/app/data ciggiecig:release
+```
+
+Configure merchant credentials through the host's secret manager, mount persistent storage at `/app/data`, and use HTTPS. Production starts with an empty catalog unless `SEED_DEMO_PRODUCTS=true` is explicitly set; create draft products through `/admin` and publish only after reviewing their data. JSON persistence is suitable only for a single instance and must be migrated to a transactional database before scale-out or high-concurrency orders.
+
+Read [`docs/PRODUCTION_RELEASE_CHECKLIST.md`](docs/PRODUCTION_RELEASE_CHECKLIST.md) before release. Passing CI is not a substitute for sandbox payment, signed callback, identity-provider, backup/restore, and deployment smoke tests.
 
 ---
 

@@ -75,10 +75,22 @@ function signHmac(secret, rawBody) {
   return crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
 }
 
+function safeHexDigestEqual(expected, provided) {
+  if (typeof provided !== 'string' || !/^[a-f0-9]{64}$/i.test(provided)) return false;
+  const expectedBuffer = Buffer.from(expected, 'hex');
+  const providedBuffer = Buffer.from(provided, 'hex');
+  return expectedBuffer.length === providedBuffer.length && crypto.timingSafeEqual(expectedBuffer, providedBuffer);
+}
+
+function constantTimeStringEqual(left, right) {
+  const leftDigest = crypto.createHash('sha256').update(String(left)).digest();
+  const rightDigest = crypto.createHash('sha256').update(String(right)).digest();
+  return crypto.timingSafeEqual(leftDigest, rightDigest);
+}
+
 function verifyHmac(rawBody, signature, secret) {
-  if (!secret || !signature) return false;
-  const expected = signHmac(secret, rawBody);
-  return crypto.timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(signature.toLowerCase(), 'hex'));
+  if (!secret || typeof signature !== 'string') return false;
+  return safeHexDigestEqual(signHmac(secret, rawBody), signature);
 }
 
 function sortSignedFields(values, signedFields) {
@@ -94,8 +106,9 @@ function createCyberSourceSignature(values, secret, signedFields) {
 }
 
 function verifyCyberSourceSignature(values, secret, signedFields, providedSignature) {
+  if (typeof providedSignature !== 'string') return false;
   const expected = createCyberSourceSignature(values, secret, signedFields);
-  return expected === providedSignature;
+  return constantTimeStringEqual(expected, providedSignature);
 }
 
 function verifyPersonaWebhook(rawBody, headers, secret) {
@@ -110,13 +123,13 @@ function verifyPersonaWebhook(rawBody, headers, secret) {
   const v1 = parts.v1;
   if (!ts || !v1 || !secret) return false;
   const expected = crypto.createHmac('sha256', secret).update(`${ts}.${rawBody}`).digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(v1));
+  return safeHexDigestEqual(expected, v1);
 }
 
 function verifyVeriffWebhook(rawBody, signature, secret) {
-  if (!signature || !secret) return false;
+  if (typeof signature !== 'string' || !secret) return false;
   const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature.toLowerCase()));
+  return safeHexDigestEqual(expected, signature);
 }
 
 function buildProduct(product) {

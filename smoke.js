@@ -3,8 +3,14 @@ const crypto = require('crypto');
 const { computePrice, isAgeVerified, productStatus, isAllowedZip, verifyPersonaWebhook, verifyVeriffWebhook, createCyberSourceSignature, verifyCyberSourceSignature } = require('./extra');
 
 function run() {
-  assert.strictEqual(isAgeVerified('2000-01-01'), true, 'age gate should accept 21+');
-  assert.strictEqual(isAgeVerified('2005-01-01'), false, 'age gate should reject under 21');
+  const ageDate = (yearsAgo) => {
+    const date = new Date();
+    date.setHours(12, 0, 0, 0);
+    date.setFullYear(date.getFullYear() - yearsAgo);
+    return date.toISOString().slice(0, 10);
+  };
+  assert.strictEqual(isAgeVerified(ageDate(22)), true, 'age gate should accept an adult');
+  assert.strictEqual(isAgeVerified(ageDate(20)), false, 'age gate should reject a minor');
 
   const product = { name: 'draft', cost: 12, fda_order_number: '' };
   assert.strictEqual(productStatus(product), 'blocked', 'product should be blocked without FDA order number');
@@ -37,7 +43,7 @@ function run() {
   const sig = createCyberSourceSignature(values, 'cybs-secret', signedNames);
   assert.strictEqual(verifyCyberSourceSignature(values, 'cybs-secret', signedNames, sig), true, 'CyberSource form signature should verify');
 
-  const tampered = { ...values, amount: '999.00' };
+  const tampered = { ...values, amount: '1.00' };
   assert.strictEqual(verifyCyberSourceSignature(tampered, 'cybs-secret', signedNames, sig), false, 'tampered values should fail');
 
   console.log('smoke.js: 40 passed, 0 failed');

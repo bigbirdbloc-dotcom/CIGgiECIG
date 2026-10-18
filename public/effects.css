@@ -229,3 +229,71 @@ input:focus, select:focus, textarea:focus {
     font-size: 1.8rem;
   }
 }
+
+
+/* Persistent soundtrack dock and device-screen edge lighting */
+:root { --beat-energy: .25; --edge-opacity: .4; --beat-glow: 14px; --beat-hue: 0deg; }
+.soundtrack-section {
+  margin: 24px 0 28px;
+  padding: 20px;
+  display: grid;
+  grid-template-columns: minmax(220px, .85fr) minmax(280px, 1fr);
+  align-items: center;
+  gap: 22px;
+  border: 2px solid rgba(255,43,214,.72);
+  background: linear-gradient(120deg, rgba(12,8,20,.96), rgba(25,9,32,.92));
+  box-shadow: 0 0 22px rgba(255,43,214,.18), inset 0 0 28px rgba(0,240,255,.07);
+  position: relative;
+  z-index: 2;
+}
+.soundtrack-heading h2 { margin: 0 0 10px; font-family: 'Bungee', sans-serif; font-size: clamp(1.4rem, 2.8vw, 2.4rem); line-height: 1; text-shadow: 0 0 16px #ff2bd6; }
+.soundtrack-heading p:last-child { color: var(--muted); line-height: 1.6; margin-bottom: 0; }
+.spotify-player { min-width: 0; }
+.music-dock {
+  position: fixed;
+  z-index: 1001;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(620px, calc(100vw - 24px));
+  padding: 12px 14px;
+  color: #fff;
+  background: rgba(10,7,20,.96);
+  border: 1px solid rgba(0,240,255,.65);
+  box-shadow: 0 0 18px rgba(0,240,255,.2), 0 0 26px rgba(255,43,214,.2);
+  backdrop-filter: blur(16px);
+}
+.music-dock__top, .music-dock__bottom { display:flex; align-items:center; gap:12px; }
+.music-dock__top { justify-content:space-between; }
+.music-dock__bottom { justify-content:space-between; margin-top:10px; flex-wrap:wrap; }
+.music-dock__label { display:grid; gap:3px; flex:1; min-width:100px; }
+.music-dock__label strong { font-family:'Bungee',sans-serif; font-size:.78rem; letter-spacing:.08em; }
+.music-dock__label span, .volume-control span { font-size:.68rem; color:#d6d3e4; }
+.music-indicator { width:10px; height:10px; border-radius:50%; background:#777; flex:none; }
+.music-playing .music-indicator { background:#b6ff00; box-shadow:0 0 14px #b6ff00; animation: music-dot .6s ease-in-out infinite alternate; }
+.music-toggle { min-height:42px; padding:0 14px; border:2px solid #000; background:linear-gradient(135deg,#ff2bd6,#00f0ff); color:#090711; font-size:.72rem; }
+.volume-control { display:flex; align-items:center; gap:8px; }
+.volume-control input { width:105px; accent-color:#ff2bd6; }
+.edge-control { display:flex; align-items:center; gap:7px; color:#eee; font-size:.72rem; }
+.edge-control input { accent-color:#00f0ff; }
+.spotify-link { color:#b6ff00; font-size:.75rem; font-weight:800; text-decoration:none; }
+.edge-light { position:fixed; top:0; bottom:0; width:5px; z-index:999; pointer-events:none; opacity:0; transition:opacity .25s ease; }
+.edge-light--left { left:0; background:linear-gradient(180deg,#00f0ff,#ff2bd6,#b6ff00,#8b4dff); box-shadow:0 0 var(--beat-glow) rgba(0,240,255,.85), 0 0 30px rgba(255,43,214,.55); }
+.edge-light--right { right:0; background:linear-gradient(0deg,#00f0ff,#ff2bd6,#b6ff00,#8b4dff); box-shadow:0 0 var(--beat-glow) rgba(255,43,214,.85), 0 0 30px rgba(0,240,255,.55); }
+.music-playing .edge-light { opacity:var(--edge-opacity); }
+.music-playing .edge-light--left { filter:hue-rotate(var(--beat-hue)); }
+.music-playing .edge-light--right { filter:hue-rotate(calc(var(--beat-hue) * -1)); }
+.beat-pulse .edge-light { opacity:1; }
+.edge-lighting-off .edge-light { opacity:0 !important; }
+.beat-active .hero-art, .beat-active .hero-panel { box-shadow:0 0 var(--beat-glow) rgba(0,240,255,.45), 0 0 calc(var(--beat-glow) + 20px) rgba(255,43,214,.24); }
+@keyframes music-dot { to { transform:scale(1.45); opacity:.65; } }
+@media (max-width:700px) {
+  .soundtrack-section { grid-template-columns:1fr; padding:16px 12px; }
+  .music-dock { padding:10px; }
+  .music-dock__top { gap:8px; }
+  .music-toggle { padding:0 9px; font-size:.65rem; }
+  .volume-control input { width:82px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .music-playing .music-indicator, .beat-pulse .edge-light { animation:none !important; }
+}
