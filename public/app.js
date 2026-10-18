@@ -1,144 +1,90 @@
-// CIGgiECIG — Graffiti storefront UI
 (function () {
-  const products = [
-    { id: 'aurora', name: 'AURORA 7000', flavor: 'Blueberry Burst', price: 16.8, badge: 'new', image: '/tiles/tile-1.svg', status: 'FDA AUTH', description: 'Sparked with mint chill and neon purple haze.' },
-    { id: 'midnight', name: 'MIDNIGHT 7000', flavor: 'Mango Riot', price: 18.4, badge: 'top', image: '/tiles/tile-2.svg', status: 'FDA AUTH', description: 'Dark fruit energy with a smooth exhale.' },
-    { id: 'cinder', name: 'CINDER 7000', flavor: 'Citrus Dusk', price: 17.2, badge: 'hot', image: '/tiles/tile-3.svg', status: 'FDA AUTH', description: 'A bitter-sweet finish built for after-hours.' },
-    { id: 'volt', name: 'VOLT POD', flavor: 'Berry Crash', price: 19.9, badge: 'drop', image: '/tiles/tile-4.svg', status: 'FDA AUTH', description: 'Dense clouds and a clean finish.' },
-    { id: 'noir', name: 'NOIR POD', flavor: 'Mango Fuel', price: 21.0, badge: 'ltd', image: '/tiles/tile-5.svg', status: 'FDA AUTH', description: 'Razor cool vapor with neon heat.' },
-    { id: 'pulse', name: 'PULSE POD', flavor: 'Grape Surge', price: 20.5, badge: 'elite', image: '/tiles/tile-6.svg', status: 'FDA AUTH', description: 'High-output draw with a clean throat hit.' }
-  ];
-
-  const formatMoney = (value) => `$${Number(value).toFixed(2)}`;
-
-  function renderHero() {
-    return `
-      <section class="hero-panel neon-box">
-        <div class="hero-art">
-          <img src="/hero.svg" alt="CIGgiECIG hero graffiti mural" />
-        </div>
-        <div class="hero-copy">
-          <p class="eyebrow">21+ ONLY // streetcrafted</p>
-          <h1 class="hero-title glitch-text" data-text="3AM CYPHER">3AM CYPHER</h1>
-          <p class="hero-subtitle">Neon vapor culture built for late-night runs, backed by strict age-gating and real vendor adapter hooks.</p>
-          <div class="cta-row">
-            <a class="cta" href="#shop">Shop the drop</a>
-            <a class="ghost" href="/admin">Admin</a>
-          </div>
-          <div class="mini-stats">
-            <div><strong>48</strong><span>Authorized SKUs</span></div>
-            <div><strong>21+</strong><span>Age gate required</span></div>
-            <div><strong>24/7</strong><span>Street-ready flow</span></div>
-          </div>
-        </div>
-      </section>
-    `;
+  'use strict';
+  const root = document.getElementById('app-content');
+  const state = { products: [], cart: new Map(), busy: false };
+  const money = v => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(v) || 0);
+  const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
+  const imagePath = v => typeof v === 'string' && /^\/[a-zA-Z0-9/_\-.]+$/.test(v) ? v : '/hero.svg';
+  async function api(url, options) {
+    const response = await fetch(url, Object.assign({ credentials: 'same-origin' }, options || {}));
+    const type = response.headers.get('content-type') || '';
+    const data = type.includes('application/json') ? await response.json() : await response.text();
+    if (!response.ok) throw new Error(data && data.error ? data.error : 'Request failed (' + response.status + ')');
+    return data;
   }
-
-  function renderProducts() {
-    return `
-      <section id="shop" class="shop-section">
-        <div class="section-header">
-          <p class="eyebrow">AUTHORIZED DROP</p>
-          <h2 class="section-title">WALL MEAT COLLECTION</h2>
-        </div>
-        <div class="product-grid">
-          ${products.map(product => `
-            <article class="card neon-box" data-product-id="${product.id}">
-              <div class="card-top">
-                <span class="tag">${product.badge}</span>
-                <span class="meta-badge">${product.status}</span>
-              </div>
-              <img src="${product.image}" alt="${product.name}">
-              <div class="card-body">
-                <h3>${product.name}</h3>
-                <p class="flavor">${product.flavor}</p>
-                <p class="card-copy">${product.description}</p>
-                <div class="card-bottom">
-                  <div class="price">${formatMoney(product.price)}</div>
-                  <form method="POST" action="/add-to-cart">
-                    <input type="hidden" name="product_id" value="${product.id}" />
-                    <button type="submit">Add to cart</button>
-                  </form>
-                </div>
-              </div>
-            </article>
-          `).join('')}
-        </div>
-      </section>
-    `;
+  function items() {
+    return Array.from(state.cart.entries()).map(([id, qty]) => ({ product: state.products.find(p => p.id === id), qty })).filter(x => x.product);
   }
-
-  function renderCheckoutPreview() {
-    return `
-      <section class="spotlight checkout-shell">
-        <div class="checkout-copy">
-          <p class="eyebrow">CHECKOUT</p>
-          <h2 class="section-title">GET IT BEFORE DAWN</h2>
-          <p>Age verified, shipment gated, local delivery restricted to approved ZIP codes, and payment adapter ready for vendor approval.</p>
-        </div>
-        <form method="POST" action="/checkout" class="checkout-form">
-          <label>
-            <span>Shipping method</span>
-            <select name="shipping_method">
-              <option value="ship">Ship</option>
-              <option value="local">Local delivery</option>
-              <option value="pickup">Pickup</option>
-            </select>
-          </label>
-          <label>
-            <span>State</span>
-            <select name="buyer_state">
-              <option value="WA">Washington</option>
-              <option value="OR">Oregon</option>
-              <option value="CA">California</option>
-            </select>
-          </label>
-          <label>
-            <span>ZIP</span>
-            <input name="zip" value="99201" />
-          </label>
-          <button type="submit" class="cta">Place order</button>
-        </form>
-      </section>
-    `;
+  function render() {
+    if (!root) return;
+    const cart = items();
+    const count = cart.reduce((n, x) => n + x.qty, 0);
+    root.innerHTML =
+      '<section class="hero-panel neon-box"><div class="hero-art"><img src="/hero.svg" alt="CIGgiECIG graffiti mural"></div>' +
+      '<div class="hero-copy"><p class="eyebrow">21+ ONLY // STREETCRAFTED</p><h1 class="hero-title">3AM CYPHER</h1>' +
+      '<p class="hero-subtitle">Neon graffiti culture, live catalog data, a working cart, and server-calculated order totals.</p>' +
+      '<div class="cta-row"><a class="cta" href="#shop">Explore catalog</a><a class="ghost" href="#checkout">Checkout · ' + count + '</a></div>' +
+      '<div class="mini-stats"><div><strong>21+</strong><span>Age gate</span></div><div><strong>' + state.products.length + '</strong><span>Live products</span></div><div><strong>' + count + '</strong><span>Cart items</span></div></div></div></section>' +
+      '<section id="shop" class="shop-section"><div class="section-header"><div><p class="eyebrow">LIVE CATALOG</p><h2 class="section-title">THE COLLECTION</h2></div><p>' + state.products.length + ' published items</p></div><div class="product-grid">' +
+      state.products.map(p => '<article class="card neon-box"><div class="card-top"><span class="tag">AVAILABLE</span><span class="meta-badge">' + esc(p.category || 'DROP') + '</span></div>' +
+      '<img src="' + esc(imagePath(p.image)) + '" alt="' + esc(p.name) + '" loading="lazy"><div class="card-body"><h3>' + esc(p.name) + '</h3><p class="flavor">' + esc(p.flavor || p.description || '') + '</p>' +
+      '<p class="card-copy">' + esc(p.description || 'Details available from the store team.') + '</p><div class="card-bottom"><div class="price">' + money(p.price) + '</div>' +
+      '<button type="button" data-add="' + esc(p.id) + '"' + (Number(p.stock) === 0 ? ' disabled' : '') + '>' + (Number(p.stock) === 0 ? 'Out of stock' : 'Add to cart') + '</button></div>' +
+      '<p class="card-copy">' + (Number.isFinite(Number(p.stock)) ? Number(p.stock) + ' in stock' : '') + '</p></div></article>').join('') +
+      '</div>' + (state.products.length ? '' : '<p role="status">No published products are available right now.</p>') + '</section>' +
+      '<section id="checkout" class="spotlight checkout-shell"><div class="checkout-copy"><p class="eyebrow">YOUR ORDER</p><h2 class="section-title">CHECKOUT</h2>' +
+      '<p>Prices and totals are confirmed by the server. Orders remain pending until payment is verified.</p><div id="checkout-message" role="status" aria-live="polite"></div><div id="order-result"></div></div><div>' +
+      '<div class="admin-card"><h3>Cart · ' + count + ' items</h3>' + (cart.length ? '<ul class="cart-list">' + cart.map(x =>
+      '<li class="cart-line"><div><strong>' + esc(x.product.name) + '</strong><br><span>' + money(x.product.price) + ' each</span></div><div class="cart-controls">' +
+      '<button type="button" data-dec="' + esc(x.product.id) + '" aria-label="Remove one">−</button><span>' + x.qty + '</span><button type="button" data-inc="' + esc(x.product.id) + '" aria-label="Add one">+</button></div></li>').join('') +
+      '</ul>' : '<p>Your cart is empty. Add an item to begin.</p>') + '<p class="price">Catalog subtotal: ' + money(cart.reduce((n, x) => n + Number(x.product.price) * x.qty, 0)) + '</p></div>' +
+      '<form id="checkout-form" class="checkout-form"><label><span>Fulfillment</span><select name="shipping_method" required><option value="shipping">Ship to address</option><option value="local">Local delivery</option></select></label>' +
+      '<label><span>State</span><select name="state" required><option value="WA">Washington</option><option value="OR">Oregon</option></select></label>' +
+      '<label><span>ZIP code</span><input name="zip" inputmode="numeric" autocomplete="postal-code" pattern="[0-9]{5}" maxlength="5" placeholder="99201" required></label>' +
+      '<button type="submit" class="cta"' + (!cart.length || state.busy ? ' disabled' : '') + '>' + (state.busy ? 'Creating order…' : 'Create order') + '</button>' +
+      '<p class="card-copy">Creating an order does not mean payment has been received.</p></form></div></section>';
   }
-
-  function renderAdminStatus() {
-    return `
-      <section class="admin-panel">
-        <div class="admin-card">
-          <p class="eyebrow">SYSTEM</p>
-          <h3>Adapter health</h3>
-          <ul>
-            <li><span class="pill ok">Persona</span> Verified</li>
-            <li><span class="pill ok">Veriff</span> Verified</li>
-            <li><span class="pill ok">CyberSource</span> Verified</li>
-            <li><span class="pill warn">AgeChecker.Net</span> Partial</li>
-          </ul>
-        </div>
-        <div class="admin-card">
-          <p class="eyebrow">OPS</p>
-          <h3>Latest status</h3>
-          <p>Product publishing stays blocked until FDA order number and cost are added for each SKU.</p>
-          <a href="/admin" class="ghost">Open admin</a>
-        </div>
-      </section>
-    `;
+  function message(text, error) {
+    const node = document.getElementById('checkout-message');
+    if (node) { node.textContent = text; node.style.color = error ? 'var(--danger)' : 'var(--success)'; }
   }
-
-  function renderApp() {
-    const app = document.getElementById('app-content');
-    if (!app) return;
-    app.innerHTML = `
-      ${renderHero()}
-      ${renderProducts()}
-      ${renderCheckoutPreview()}
-      ${renderAdminStatus()}
-    `;
-  }
-
-  document.addEventListener('DOMContentLoaded', () => {
-    renderApp();
+  root.addEventListener('click', event => {
+    const b = event.target.closest('button');
+    if (!b) return;
+    const id = b.dataset.add || b.dataset.inc || b.dataset.dec;
+    if (!id) return;
+    const product = state.products.find(p => p.id === id);
+    if (!product) return;
+    if (b.dataset.dec) {
+      const next = (state.cart.get(id) || 0) - 1;
+      if (next <= 0) state.cart.delete(id); else state.cart.set(id, next);
+    } else {
+      const next = (state.cart.get(id) || 0) + 1;
+      if (Number.isFinite(Number(product.stock)) && next > Number(product.stock)) { message('Quantity exceeds available stock.', true); return; }
+      state.cart.set(id, next);
+    }
+    render();
   });
+  root.addEventListener('submit', async event => {
+    if (event.target.id !== 'checkout-form') return;
+    event.preventDefault();
+    if (state.busy || !state.cart.size) return;
+    const form = new FormData(event.target);
+    state.busy = true; render(); message('Validating cart and creating order…', false);
+    try {
+      const result = await api('/api/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cart: Array.from(state.cart, ([id, qty]) => ({ id, qty })),
+          shipping_method: form.get('shipping_method'), state: form.get('state'), zip: form.get('zip') }) });
+      state.cart.clear(); render();
+      const node = document.getElementById('order-result');
+      if (node) node.innerHTML = '<p><strong>Order created:</strong> ' + esc(result.order.id) + '</p><p>Total: ' + money(result.order.total) + '</p><a class="cta" href="' + esc(result.payment_url) + '">Continue to payment</a>';
+      message('Order created and awaiting payment confirmation.', false);
+    } catch (err) { message(err.message || 'Unable to create order. Please try again.', true); }
+    finally { state.busy = false; render(); }
+  });
+  async function init() {
+    try { const data = await api('/api/products'); state.products = Array.isArray(data) ? data : []; render(); }
+    catch (err) { root.innerHTML = '<section class="admin-card"><h1>Store temporarily unavailable</h1><p>' + esc(err.message) + '</p><p>Refresh in a moment. If this continues, contact the store team.</p></section>'; }
+  }
+  document.addEventListener('DOMContentLoaded', init);
 })();
