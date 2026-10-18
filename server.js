@@ -376,7 +376,7 @@ app.post('/admin/logout', (_req, res) => {
 
 app.get('/admin', (req, res) => {
   if (!adminAuth.verifyToken(req.cookies && req.cookies.admin_auth)) {
-    return res.status(200).send(\`<!DOCTYPE html>
+    return res.status(200).send(`<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>CIGgiECIG Admin Login</title><link rel="stylesheet" href="/styles.css"></head>
 <body><main class="shell"><section class="admin-card" style="max-width:520px;margin:10vh auto">
 <p class="eyebrow">RESTRICTED ACCESS</p><h1 class="section-title">ADMIN LOGIN</h1><p>Sign in with your configured administrator password.</p>
@@ -396,9 +396,9 @@ document.getElementById('login-form').addEventListener('submit', async function(
   } catch (error) { message.textContent = error.message || 'Unable to sign in'; }
   finally { button.disabled = false; }
 });
-</script></body></html>\`);
+</script></body></html>`);
   }
-  res.send(\`<!DOCTYPE html>
+  res.send(`<!DOCTYPE html>
 <html>
 <head>
   <title>CIGgiECIG Admin</title>
@@ -443,7 +443,7 @@ document.getElementById('login-form').addEventListener('submit', async function(
   </div>
   <script>
     fetch('/api/admin/orders').then(r => r.json()).then(orders => {
-      document.getElementById('orders-tbody').innerHTML = orders.map(o => \n        \`<tr><td>\${o.id}</td><td>\\$\${o.total.toFixed(2)}</td><td>\${o.status}</td><td>\${o.state}</td></tr>\`\n      ).join('');\n    });\n    fetch('/api/admin/inventory').then(r => r.json()).then(products => {\n      document.getElementById('inventory-tbody').innerHTML = products.map(p => \n        \`<tr><td>\${p.name}</td><td>\${p.stock}</td><td>\\$\${p.price.toFixed(2)}</td><td>\${p.fda}</td></tr>\`\n      ).join('');\n    });\n  </script>\n</body>\n</html>\n`);\n});\n\napp.get('/api/admin/orders', requireAdmin, (req, res) => {\n  res.json(readJSON(ORDERS_FILE, []));\n});\n\napp.get('/api/admin/inventory', requireAdmin, (req, res) => {\n  res.json(getProducts());\n});\n\napp.post('/api/admin/product/:id', requireAdmin, (req, res) => {
+      document.getElementById('orders-tbody').innerHTML = orders.map(o => \n        `<tr><td>\${o.id}</td><td>\\$\${o.total.toFixed(2)}</td><td>\${o.status}</td><td>\${o.state}</td></tr>`\n      ).join('');\n    });\n    fetch('/api/admin/inventory').then(r => r.json()).then(products => {\n      document.getElementById('inventory-tbody').innerHTML = products.map(p => \n        `<tr><td>\${p.name}</td><td>\${p.stock}</td><td>\\$\${p.price.toFixed(2)}</td><td>\${p.fda}</td></tr>`\n      ).join('');\n    });\n  </script>\n</body>\n</html>\n`);\n});\n\napp.get('/api/admin/orders', requireAdmin, (req, res) => {\n  res.json(readJSON(ORDERS_FILE, []));\n});\n\napp.get('/api/admin/inventory', requireAdmin, (req, res) => {\n  res.json(getProducts());\n});\n\napp.post('/api/admin/product/:id', requireAdmin, (req, res) => {
   const products = getProducts();
   const product = products.find(p => p.id === req.params.id);
   if (!product) return res.status(404).json({ error: 'Product not found' });
