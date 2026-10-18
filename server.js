@@ -374,8 +374,31 @@ app.post('/admin/logout', (_req, res) => {
   return res.json({ ok: true });
 });
 
-app.get('/admin', requireAdmin, (req, res) => {
-  res.send(`<!DOCTYPE html>
+app.get('/admin', (req, res) => {
+  if (!adminAuth.verifyToken(req.cookies && req.cookies.admin_auth)) {
+    return res.status(200).send(\`<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>CIGgiECIG Admin Login</title><link rel="stylesheet" href="/styles.css"></head>
+<body><main class="shell"><section class="admin-card" style="max-width:520px;margin:10vh auto">
+<p class="eyebrow">RESTRICTED ACCESS</p><h1 class="section-title">ADMIN LOGIN</h1><p>Sign in with your configured administrator password.</p>
+<form id="login-form" class="checkout-form"><label><span>Admin password</span><input type="password" name="password" autocomplete="current-password" required></label><button class="cta" type="submit">Sign in</button><p id="login-message" role="status" aria-live="polite"></p></form>
+</section></main><script>
+document.getElementById('login-form').addEventListener('submit', async function(event) {
+  event.preventDefault();
+  const message = document.getElementById('login-message');
+  const button = this.querySelector('button');
+  button.disabled = true;
+  message.textContent = 'Signing in…';
+  try {
+    const response = await fetch('/admin/login', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: new FormData(this).get('password') }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Login failed');
+    window.location.assign('/admin');
+  } catch (error) { message.textContent = error.message || 'Unable to sign in'; }
+  finally { button.disabled = false; }
+});
+</script></body></html>\`);
+  }
+  res.send(\`<!DOCTYPE html>
 <html>
 <head>
   <title>CIGgiECIG Admin</title>
