@@ -1,127 +1,107 @@
-# CIGgiECIG — Street Art Graffiti E-Commerce Platform
+<div align="center">
 
-**21+ age-gated vape storefront** with neon graffiti aesthetics, hip-hop energy, and full vendor compliance.
+# <span style="color:#b6ff00">CIGgi</span><span style="color:#ff2bd6">ECIG</span>
 
-## Stack
+### ⚡ VIBE. BUILD. EVOLVE. ⚡
 
-- **Frontend**: Vanilla JS + Canvas/WebGL, Tailwind CSS, GSAP animations
-- **Backend**: Express.js, SQLite (upgradeable to Postgres)
-- **Design**: Graffiti street art, neon magenta (#ff2bd6), electric cyan (#00f0ff), lime (#b6ff00)
-- **Audio**: Hip-hop/rap soundtrack (streaming integration ready)
-- **Effects**: Edge lighting, screen glitch, scanlines, animated text, neon glow
+**A neon graffiti-inspired storefront project with an automated GitHub Actions showcase deployment.**
 
-## Quick Start
+![Neon](https://img.shields.io/badge/STYLE-NEON%20GRAFFITI-ff2bd6?style=for-the-badge)
+![Build](https://img.shields.io/badge/BUILD-GITHUB%20ACTIONS-00f0ff?style=for-the-badge)
+![Node](https://img.shields.io/badge/NODE.JS-20%2B-b6ff00?style=for-the-badge)
 
-```bash
-cp .env.example .env
-# Edit .env; set ADMIN_PASS and ADMIN_SESSION_SECRET before login.
-set -a
-. ./.env
-set +a
-npm install
-npm run seed
-npm start
-```
+[Repository](https://github.com/bigbirdbloc-dotcom/CIGgiECIG) · [Build runs](https://github.com/bigbirdbloc-dotcom/CIGgiECIG/actions) · [Release checklist](docs/PRODUCTION_RELEASE_CHECKLIST.md)
 
-Then visit `http://localhost:3000`. Admin authentication requires both `ADMIN_PASS` and `ADMIN_SESSION_SECRET`; see `docs/SETUP_GUIDE.md` for a session-cookie example.
-
-## Features
-
-- ✅ Age gate (21+ verification)
-- ✅ Neon graffiti UI with animated effects
-- ✅ Hip-hop soundtrack with loop control
-- ✅ Product catalog with FDA order requirements
-- ✅ Checkout with state validation
-- ✅ Spokane local delivery + shipping
-- ✅ Admin panel with product management
-- ✅ Order packing slips + CSV export
-- ✅ Persona + Veriff webhook adapters
-- ✅ CyberSource payment gateway
-
-## Environment Variables
-
-```bash
-ADMIN_PASS='your-secure-password'
-ADMIN_SESSION_SECRET='a-separate-random-signing-secret'
-SHIP_STATES=WA,OR,CA
-LOCAL_ZIPS=99201,99202,99203,99204,99208
-STORE_ADDR='Your Shop Address, Spokane, WA'
-CARRIER='Regional Carrier Name'
-LOCAL_FEE=800  # cents
-TAX_RATE=0.1065  # WA + excise
-
-# ID Verification
-AGE_PROVIDER=persona
-PERSONA_API_KEY=xxx
-PERSONA_TEMPLATE_ID=itmpl_xxx
-PERSONA_WEBHOOK_SECRET=xxx
-
-# Payment
-PAY_PROVIDER=cybersource
-CYBS_ACCESS_KEY=xxx
-CYBS_PROFILE_ID=xxx
-CYBS_SECRET_KEY=xxx
-
-# Optional AI chat
-AI_API_URL=https://api.openai.com/v1/chat/completions
-AI_API_KEY=
-AI_MODEL=
-AI_TIMEOUT_MS=15000
-```
-
-## File Structure
-
-```
-/
-├── server.js              # Express server + routes
-├── extra.js               # Utilities & helpers
-├── genart.js              # SVG graffiti art generator
-├── seed.js                # Product seeding
-├── smoke.js               # Compliance tests
-├── diag.js                # Adapter diagnostics
-├── public/
-│   ├── styles.css         # Neon graffiti styling
-│   ├── app.js             # Client-side effects
-│   ├── audio.js           # Hip-hop soundtrack controls
-│   ├── hero.svg           # Animated mural
-│   ├── tiles/             # Product frame SVGs
-│   └── music/             # Hip-hop tracks
-├── adapters/
-│   ├── index.js
-│   ├── persona.js         # Age verification
-│   ├── veriff.js          # ID verification
-│   ├── agechecker.js      # AgeChecker.Net
-│   └── payment.js         # CyberSource + gateways
-└── data/
-    └── products.json      # Seeded SKUs
-```
-
-## Testing
-
-```bash
-# Compliance checks
-node smoke.js
-
-# Adapter diagnostics
-node diag.js
-
-# Full suite (including auth, webhook-signature, and AI integration tests)
-npm test
-```
-
-## Deployment
-
-Requires Node.js 20+ for the supported production baseline. A non-root Docker image and health check are included:
-
-```bash
-docker build -t ciggiecig:release .
-docker run --rm -p 3000:3000 -e NODE_ENV=production -e ADMIN_PASS='replace-me' -e ADMIN_SESSION_SECRET='use-a-different-random-secret' -v ciggiecig-data:/app/data ciggiecig:release
-```
-
-Configure merchant credentials through the host's secret manager, mount persistent storage at `/app/data`, and use HTTPS. Production starts with an empty catalog unless `SEED_DEMO_PRODUCTS=true` is explicitly set; create draft products through `/admin` and publish only after reviewing their data. JSON persistence is suitable only for a single instance and must be migrated to a transactional database before scale-out or high-concurrency orders.
-
-Read [`docs/PRODUCTION_RELEASE_CHECKLIST.md`](docs/PRODUCTION_RELEASE_CHECKLIST.md) before release. Passing CI is not a substitute for sandbox payment, signed callback, identity-provider, backup/restore, and deployment smoke tests.
+</div>
 
 ---
 
-**Built for vape retailers with compliance on lock. Neon graffiti aesthetic that doesn't compromise on age-gating, vendor verification, or order tracking.**
+## 🎨 THE VIBE
+
+CIGgiECIG pairs a high-contrast street-art identity with an evolving web storefront: electric cyan `#00f0ff`, graffiti magenta `#ff2bd6`, acid lime `#b6ff00`, dark surfaces, neon borders, and responsive motion.
+
+> **Important:** GitHub Pages hosts the static project showcase only. The full commerce application relies on the Express/Node.js backend for product APIs, age verification, admin operations, checkout, payments, and webhooks; deploy that backend separately to a supported Node.js host. Do not treat a Pages URL as a live checkout system.
+
+## ✨ WHAT'S INSIDE
+
+- **Neon storefront UI** — responsive styling, graffiti mural, audio controls, and screen-edge effects.
+- **Product catalog and cart flow** — product API, stock checks, server-authoritative pricing, and checkout validation.
+- **Admin and integration foundation** — protected admin routes, provider adapters, and webhook signature checks.
+- **Automated showcase deployment** — GitHub Actions validates `site/` and deploys it to GitHub Pages when relevant files reach `main`.
+- **Release discipline** — automated tests plus a separate production checklist for external integrations and deployment verification.
+
+## 🚀 QUICK START — LOCAL APP
+
+Requirements: Node.js 20+ and npm.
+
+```bash
+git clone https://github.com/bigbirdbloc-dotcom/CIGgiECIG.git
+cd CIGgiECIG
+npm install
+cp .env.example .env
+```
+
+Set secure values for `ADMIN_PASS` and `ADMIN_SESSION_SECRET` in `.env`, then load them and start the app:
+
+```bash
+set -a
+. ./.env
+set +a
+npm test
+npm start
+```
+
+Open `http://localhost:3000`. Never commit `.env`, credentials, payment secrets, or real customer data.
+
+## 🛠️ AUTOMATED GITHUB PAGES BUILD
+
+Workflow: [`.github/workflows/pages.yml`](.github/workflows/pages.yml)  
+Showcase source: [`site/`](site/)
+
+1. In the repository, open **Settings → Pages**.
+2. Under **Build and deployment**, select **GitHub Actions** as the source.
+3. Push a change to `site/`, `README.md`, or the Pages workflow on `main`, or manually run the workflow from **Actions → Build and deploy CIGgiECIG GitHub Pages → Run workflow**.
+4. Inspect the workflow run and its deployment URL in the `github-pages` environment.
+
+The workflow validates the static showcase, uploads the `site/` artifact, and deploys it with the official GitHub Pages Actions. The showcase build does not bundle or host the Node.js commerce server.
+
+## 🧪 TEST BEFORE RELEASE
+
+```bash
+npm test
+docker build -t ciggiecig:release .
+```
+
+CI runs the repository test suite on pushes and pull requests to `main`. A green CI run is necessary, but it does not prove the live payment provider, identity checks, signed callbacks, persistent storage, or public hosting are correctly configured.
+
+## 🔐 PRODUCTION RELEASE GATES
+
+Before accepting live orders, complete the [production release checklist](docs/PRODUCTION_RELEASE_CHECKLIST.md), including:
+
+- Deploy the Express app to a supported Node.js host with HTTPS and persistent storage.
+- Configure real admin/session secrets, payment credentials, and identity-provider settings through a secret manager.
+- Complete payment sandbox success/failure and signed callback tests.
+- Confirm age/identity verification is enforced through the complete customer and order flow.
+- Configure the approved catalog, shipping/tax rules, monitoring, backups, and restore testing.
+- Move beyond JSON file persistence before multi-instance deployment or high-concurrency transactions.
+
+## 📁 PROJECT MAP
+
+```text
+.github/workflows/  CI and Pages deployment automation
+site/               Static neon-themed GitHub Pages showcase
+public/             Storefront assets, styles, audio controller, mural
+adapters/           Payment and identity provider adapters
+docs/               Setup and production release guidance
+tests/              Server, admin-auth, webhook and AI integration tests
+server.js            Express routes and checkout flow
+Dockerfile           Container image for the Node.js app
+```
+
+---
+
+<div align="center">
+
+**⚡ NEON LOOK. VERIFIED BUILDS. HONEST RELEASE GATES. ⚡**
+
+</div>
