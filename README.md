@@ -111,9 +111,16 @@ npm test
 
 ## Deployment
 
-Works on Termux, Replit, or Linux. Node 16+, 512 MB RAM minimum.
+Requires Node.js 20+ for the supported production baseline. A non-root Docker image and health check are included:
 
-For production: use Postgres, add Cloudflare protection, verify host accepts tobacco commerce.
+```bash
+docker build -t ciggiecig:release .
+docker run --rm -p 3000:3000 -e NODE_ENV=production -e ADMIN_PASS='replace-me' -e ADMIN_SESSION_SECRET='use-a-different-random-secret' -v ciggiecig-data:/app/data ciggiecig:release
+```
+
+Configure merchant credentials through the host's secret manager, mount persistent storage at `/app/data`, and use HTTPS. Production starts with an empty catalog unless `SEED_DEMO_PRODUCTS=true` is explicitly set; create draft products through `/admin` and publish only after reviewing their data. JSON persistence is suitable only for a single instance and must be migrated to a transactional database before scale-out or high-concurrency orders.
+
+Read [`docs/PRODUCTION_RELEASE_CHECKLIST.md`](docs/PRODUCTION_RELEASE_CHECKLIST.md) before release. Passing CI is not a substitute for sandbox payment, signed callback, identity-provider, backup/restore, and deployment smoke tests.
 
 ---
 
