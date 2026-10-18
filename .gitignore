@@ -8,3 +8,5 @@ coverage/
 # Runtime order/audit records can contain customer information.
 data/orders.json
 data/audit.json
+
+data/products.json
