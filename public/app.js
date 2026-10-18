@@ -1,7 +1,7 @@
 (function () {
   'use strict';
   const root = document.getElementById('app-content');
-  const state = { products: [], cart: new Map(), busy: false };
+  const state = { products: [], cart: new Map(), busy: false, notice: null, orderResult: '' };
   const money = v => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(v) || 0);
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
   const imagePath = v => typeof v === 'string' && /^\/[a-zA-Z0-9/_\-.]+$/.test(v) ? v : '/hero.svg';
@@ -33,7 +33,7 @@
       '<p class="card-copy">' + (Number.isFinite(Number(p.stock)) ? Number(p.stock) + ' in stock' : '') + '</p></div></article>').join('') +
       '</div>' + (state.products.length ? '' : '<p role="status">No published products are available right now.</p>') + '</section>' +
       '<section id="checkout" class="spotlight checkout-shell"><div class="checkout-copy"><p class="eyebrow">YOUR ORDER</p><h2 class="section-title">CHECKOUT</h2>' +
-      '<p>Prices and totals are confirmed by the server. Orders remain pending until payment is verified.</p><div id="checkout-message" role="status" aria-live="polite"></div><div id="order-result"></div></div><div>' +
+      '<p>Prices and totals are confirmed by the server. Orders remain pending until payment is verified.</p><div id="checkout-message" role="status" aria-live="polite">' + (state.notice ? esc(state.notice.text) : '') + '</div><div id="order-result">' + state.orderResult + '</div></div><div>' +
       '<div class="admin-card"><h3>Cart · ' + count + ' items</h3>' + (cart.length ? '<ul class="cart-list">' + cart.map(x =>
       '<li class="cart-line"><div><strong>' + esc(x.product.name) + '</strong><br><span>' + money(x.product.price) + ' each</span></div><div class="cart-controls">' +
       '<button type="button" data-dec="' + esc(x.product.id) + '" aria-label="Remove one">−</button><span>' + x.qty + '</span><button type="button" data-inc="' + esc(x.product.id) + '" aria-label="Add one">+</button></div></li>').join('') +
@@ -46,6 +46,7 @@
   }
   function message(text, error) {
     const node = document.getElementById('checkout-message');
+    state.notice = { text, error };
     if (node) { node.textContent = text; node.style.color = error ? 'var(--danger)' : 'var(--success)'; }
   }
   root.addEventListener('click', event => {
@@ -75,10 +76,10 @@
       const result = await api('/api/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cart: Array.from(state.cart, ([id, qty]) => ({ id, qty })),
           shipping_method: form.get('shipping_method'), state: form.get('state'), zip: form.get('zip') }) });
-      state.cart.clear(); render();
-      const node = document.getElementById('order-result');
-      if (node) node.innerHTML = '<p><strong>Order created:</strong> ' + esc(result.order.id) + '</p><p>Total: ' + money(result.order.total) + '</p><a class="cta" href="' + esc(result.payment_url) + '">Continue to payment</a>';
+      state.cart.clear();
+      state.orderResult = '<p><strong>Order created:</strong> ' + esc(result.order.id) + '</p><p>Total: ' + money(result.order.total) + '</p><a class="cta" href="' + esc(result.payment_url) + '">Continue to payment</a>';
       message('Order created and awaiting payment confirmation.', false);
+      render();
     } catch (err) { message(err.message || 'Unable to create order. Please try again.', true); }
     finally { state.busy = false; render(); }
   });
