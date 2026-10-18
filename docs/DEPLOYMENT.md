@@ -4,6 +4,7 @@
 
 - [ ] Verify hosting provider accepts tobacco/vape commerce
 - [ ] Set ADMIN_PASS to a strong password
+- [ ] Set ADMIN_SESSION_SECRET to a separate, high-entropy signing secret
 - [ ] Configure payment processor (CyberSource, Authorize.Net, NMI)
 - [ ] Set up ID verification vendor (Persona, Veriff, AgeChecker.Net)
 - [ ] Migrate database to PostgreSQL for production
@@ -23,6 +24,7 @@ PORT=3000
 
 # Admin
 ADMIN_PASS='your-secure-password-here'
+ADMIN_SESSION_SECRET='your-separate-high-entropy-signing-secret'
 
 # Shipping
 SHIP_STATES=WA,OR,CA
@@ -44,6 +46,12 @@ PERSONA_API_KEY=your_api_key
 PERSONA_TEMPLATE_ID=itmpl_xxxxx
 PERSONA_WEBHOOK_SECRET=your_webhook_secret
 
+# Optional AI chat (leave AI_API_KEY and AI_MODEL empty to disable)
+AI_API_URL=https://api.openai.com/v1/chat/completions
+AI_API_KEY=your_provider_key
+AI_MODEL=provider_supported_model
+AI_TIMEOUT_MS=15000
+
 # Database
 DATABASE_URL=postgresql://user:password@host/ciggiecig
 ```
@@ -64,7 +72,7 @@ Build and run:
 
 ```bash
 docker build -t ciggiecig .
-docker run -e ADMIN_PASS='...' -e CYBS_SECRET_KEY='...' -p 3000:3000 ciggiecig
+docker run -e ADMIN_PASS='...' -e ADMIN_SESSION_SECRET='...' -e CYBS_SECRET_KEY='...' -p 3000:3000 ciggiecig
 ```
 
 ## Heroku Deployment
@@ -118,3 +126,10 @@ cp data/orders.json data/orders.json.$(date +%Y%m%d).bak
 - Store payment receipts for tax reporting
 - Keep FDA order numbers current for all products
 - Document shipping restrictions per state
+
+
+## Optional AI integration
+
+The admin-only AI helper uses the server-side variables AI_API_URL, AI_API_KEY, AI_MODEL, and AI_TIMEOUT_MS. It is disabled without the key and model. Provider credentials must never be placed in browser code or committed. See [SETUP_GUIDE.md](SETUP_GUIDE.md) and [AI_INTEGRATION_SECURITY.md](AI_INTEGRATION_SECURITY.md). The optional helper is text-only; it does not perform repository writes, shell execution, merges, or deployments.
+
+Node does not load .env automatically in the supported runtime range. Supply environment variables through the deployment platform or an appropriately protected process manager. Do not make .env accessible through the web server.

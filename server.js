@@ -10,12 +10,17 @@ const cookieParser = require('cookie-parser');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { createAdminAuth, ADMIN_SESSION_TTL_MS } = require('./admin-auth');
+const { registerAIRoutes } = require('./ai-integration');
+const { ageFromDob } = require('./extra');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ========== CONFIG ==========
-const ADMIN_PASS = process.env.ADMIN_PASS || 'admin123';
+const ADMIN_PASS = process.env.ADMIN_PASS || '';
+const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || '';
+const adminAuth = createAdminAuth({ password: ADMIN_PASS, sessionSecret: ADMIN_SESSION_SECRET });
 const SHIP_STATES = (process.env.SHIP_STATES || 'WA,OR').split(',');
 const LOCAL_ZIPS = (process.env.LOCAL_ZIPS || '99201,99202,99203,99204,99208').split(',');
 const STORE_ADDR = process.env.STORE_ADDR || '123 Main St, Spokane, WA 99201';
@@ -68,7 +73,7 @@ app.use(express.static('public'));
 
 // Age verification middleware
 function requireAdult(req, res, next) {
-  if (req.path === '/verify' || req.path.startsWith('/admin/') || req.path === '/admin') {
+  if (req.path === '/verify' || req.path.startsWith('/admin/') || req.path.startsWith('/api/admin/') || req.path === '/admin') {
     return next();
   }
   const ageToken = req.cookies.age_verified;
@@ -82,12 +87,13 @@ app.use(requireAdult);
 
 // Admin auth middleware
 function requireAdmin(req, res, next) {
-  const adminAuth = req.cookies.admin_auth;
-  if (!adminAuth) {
+  if (!adminAuth.verifyToken(req.cookies && req.cookies.admin_auth)) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   next();
 }
+
+registerAIRoutes(app, { requireAdmin });
 
 // ========== AGE VERIFICATION ==========
 app.get('/verify', (req, res) => {
@@ -122,11 +128,17 @@ app.get('/verify', (req, res) => {
 });
 
 app.post('/verify', (req, res) => {
-  const dob = new Date(req.body.dob);
-  const age = new Date().getFullYear() - dob.getFullYear();
-  if (age >= 21) {
-    res.cookie('age_verified', 'yes', { maxAge: 30 * 24 * 60 * 60 * 1000, httpOnly: true });
-    auditLog('age_verified', { dob: req.body.dob, age });
+  const dob = req.body && typeof req.body.dob === 'string' ? req.body.dob : '';
+  const age = ageFromDob(dob);
+  if (age !== null && age >= 21) {
+    res.cookie('age_verified', 'yes', {
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production'
+    });
+    // Do not persist the customer's full date of birth in the audit log.
+    auditLog('age_verified', { age });
     return res.redirect('/');
   }
   res.status(403).send('Must be 21 or older.');
@@ -284,12 +296,30 @@ app.post('/webhooks/veriff', (req, res) => {
 
 // ========== ADMIN PANEL ==========
 app.post('/admin/login', (req, res) => {
-  const { password } = req.body;
-  if (password === ADMIN_PASS) {
-    res.cookie('admin_auth', 'yes', { maxAge: 8 * 60 * 60 * 1000 });
+  if (!adminAuth.isConfigured()) {
+    return res.status(503).json({ error: 'Admin authentication is not configured.' });
+  }
+  const password = req.body && req.body.password;
+  if (adminAuth.verifyPassword(password)) {
+    const expiresAt = Date.now() + ADMIN_SESSION_TTL_MS;
+    res.cookie('admin_auth', adminAuth.createToken(expiresAt), {
+      maxAge: ADMIN_SESSION_TTL_MS,
+      httpOnly: true,
+      sameSite: 'strict',
+      secure: process.env.NODE_ENV === 'production'
+    });
     return res.json({ ok: true });
   }
-  res.status(401).json({ error: 'Invalid password' });
+  return res.status(401).json({ error: 'Invalid password' });
+});
+
+app.post('/admin/logout', (_req, res) => {
+  res.clearCookie('admin_auth', {
+    httpOnly: true,
+    sameSite: 'strict',
+    secure: process.env.NODE_ENV === 'production'
+  });
+  return res.json({ ok: true });
 });
 
 app.get('/admin', requireAdmin, (req, res) => {
@@ -338,4 +368,4 @@ app.get('/admin', requireAdmin, (req, res) => {
   </div>
   <script>
     fetch('/api/admin/orders').then(r => r.json()).then(orders => {
-      document.getElementById('orders-tbody').innerHTML = orders.map(o => \n        \`<tr><td>\${o.id}</td><td>\\$\${o.total.toFixed(2)}</td><td>\${o.status}</td><td>\${o.state}</td></tr>\`\n      ).join('');\n    });\n    fetch('/api/admin/inventory').then(r => r.json()).then(products => {\n      document.getElementById('inventory-tbody').innerHTML = products.map(p => \n        \`<tr><td>\${p.name}</td><td>\${p.stock}</td><td>\\$\${p.price.toFixed(2)}</td><td>\${p.fda}</td></tr>\`\n      ).join('');\n    });\n  </script>\n</body>\n</html>\n`);\n});\n\napp.get('/api/admin/orders', requireAdmin, (req, res) => {\n  res.json(readJSON(ORDERS_FILE, []));\n});\n\napp.get('/api/admin/inventory', requireAdmin, (req, res) => {\n  res.json(getProducts());\n});\n\napp.post('/api/admin/product/:id', requireAdmin, (req, res) => {\n  const products = getProducts();\n  const product = products.find(p => p.id === req.params.id);\n  if (!product) return res.status(404).json({ error: 'Product not found' });\n  Object.assign(product, req.body);\n  writeJSON(PRODUCTS_FILE, products);\n  auditLog('product_updated', { product_id: req.params.id });\n  res.json({ ok: true });\n});\n\n// ========== HOMEPAGE ==========\napp.get('/', (req, res) => {\n  res.sendFile(path.join(__dirname, 'public', 'index.html'));\n});\n\n// ========== ADAPTER STATUS ==========\napp.get('/api/adapters', (req, res) => {\n  res.json({\n    persona: PersonaAdapter.getStatus(),\n    veriff: VeriffAdapter.getStatus(),\n    payment: PaymentAdapter.getAdapterStatus()\n  });\n});\n\n// ========== HEALTH CHECK ==========\napp.get('/health', (req, res) => {\n  res.json({\n    status: 'ok',\n    timestamp: new Date().toISOString(),\n    uptime: process.uptime(),\n    env: {\n      admin_pass_set: !!ADMIN_PASS,\n      pay_provider: PAY_PROVIDER,\n      ship_states: SHIP_STATES,\n      local_zips: LOCAL_ZIPS\n    }\n  });\n});\n\n// ========== START SERVER ==========\ninitProducts();\napp.listen(PORT, () => {\n  console.log(`\n🎨 CIGgiECIG Storefront Running\n`);\n  console.log(`🌐 http://localhost:${PORT}`);\n  console.log(`📊 Admin: http://localhost:${PORT}/admin`);\n  console.log(`🔧 Health: http://localhost:${PORT}/health`);\n  console.log(`\n✅ Age gate enabled`);\n  console.log(`✅ Payment adapters active`);\n  console.log(`✅ Webhook listeners ready`);\n  console.log(`\n`);\n  auditLog('server_start', { port: PORT, provider: PAY_PROVIDER });\n});\n\nmodule.exports = app;\n
+      document.getElementById('orders-tbody').innerHTML = orders.map(o => \n        \`<tr><td>\${o.id}</td><td>\\$\${o.total.toFixed(2)}</td><td>\${o.status}</td><td>\${o.state}</td></tr>\`\n      ).join('');\n    });\n    fetch('/api/admin/inventory').then(r => r.json()).then(products => {\n      document.getElementById('inventory-tbody').innerHTML = products.map(p => \n        \`<tr><td>\${p.name}</td><td>\${p.stock}</td><td>\\$\${p.price.toFixed(2)}</td><td>\${p.fda}</td></tr>\`\n      ).join('');\n    });\n  </script>\n</body>\n</html>\n`);\n});\n\napp.get('/api/admin/orders', requireAdmin, (req, res) => {\n  res.json(readJSON(ORDERS_FILE, []));\n});\n\napp.get('/api/admin/inventory', requireAdmin, (req, res) => {\n  res.json(getProducts());\n});\n\napp.post('/api/admin/product/:id', requireAdmin, (req, res) => {\n  const products = getProducts();\n  const product = products.find(p => p.id === req.params.id);\n  if (!product) return res.status(404).json({ error: 'Product not found' });\n  Object.assign(product, req.body);\n  writeJSON(PRODUCTS_FILE, products);\n  auditLog('product_updated', { product_id: req.params.id });\n  res.json({ ok: true });\n});\n\n// ========== HOMEPAGE ==========\napp.get('/', (req, res) => {\n  res.sendFile(path.join(__dirname, 'public', 'index.html'));\n});\n\n// ========== ADAPTER STATUS ==========\napp.get('/api/adapters', (req, res) => {\n  res.json({\n    persona: PersonaAdapter.getStatus(),\n    veriff: VeriffAdapter.getStatus(),\n    payment: PaymentAdapter.getAdapterStatus()\n  });\n});\n\n// ========== HEALTH CHECK ==========\napp.get('/health', (req, res) => {\n  res.json({\n    status: 'ok',\n    timestamp: new Date().toISOString(),\n    uptime: process.uptime(),\n    env: {\n      admin_auth_configured: adminAuth.isConfigured(),\n      pay_provider: PAY_PROVIDER,\n      ship_states: SHIP_STATES,\n      local_zips: LOCAL_ZIPS\n    }\n  });\n});\n\n// ========== START SERVER ==========\ninitProducts();\napp.listen(PORT, () => {\n  console.log(`\n🎨 CIGgiECIG Storefront Running\n`);\n  console.log(`🌐 http://localhost:${PORT}`);\n  console.log(`📊 Admin: http://localhost:${PORT}/admin`);\n  console.log(`🔧 Health: http://localhost:${PORT}/health`);\n  console.log(`\n✅ Age gate enabled`);\n  console.log(`✅ Payment adapters active`);\n  console.log(`✅ Webhook listeners ready`);\n  console.log(`\n`);\n  auditLog('server_start', { port: PORT, provider: PAY_PROVIDER });\n});\n\nmodule.exports = app;\n

@@ -13,13 +13,17 @@
 ## Quick Start
 
 ```bash
-cd ~/ciggiecig
+cp .env.example .env
+# Edit .env; set ADMIN_PASS and ADMIN_SESSION_SECRET before login.
+set -a
+. ./.env
+set +a
 npm install
 npm run seed
 npm start
 ```
 
-Then visit `http://localhost:3000` and log into admin at `/admin` with password from `ADMIN_PASS`.
+Then visit `http://localhost:3000`. Admin authentication requires both `ADMIN_PASS` and `ADMIN_SESSION_SECRET`; see `docs/SETUP_GUIDE.md` for a session-cookie example.
 
 ## Features
 
@@ -38,6 +42,7 @@ Then visit `http://localhost:3000` and log into admin at `/admin` with password 
 
 ```bash
 ADMIN_PASS='your-secure-password'
+ADMIN_SESSION_SECRET='a-separate-random-signing-secret'
 SHIP_STATES=WA,OR,CA
 LOCAL_ZIPS=99201,99202,99203,99204,99208
 STORE_ADDR='Your Shop Address, Spokane, WA'
@@ -56,6 +61,12 @@ PAY_PROVIDER=cybersource
 CYBS_ACCESS_KEY=xxx
 CYBS_PROFILE_ID=xxx
 CYBS_SECRET_KEY=xxx
+
+# Optional AI chat
+AI_API_URL=https://api.openai.com/v1/chat/completions
+AI_API_KEY=
+AI_MODEL=
+AI_TIMEOUT_MS=15000
 ```
 
 ## File Structure
@@ -93,6 +104,9 @@ node smoke.js
 
 # Adapter diagnostics
 node diag.js
+
+# Full suite (including auth, webhook-signature, and AI integration tests)
+npm test
 ```
 
 ## Deployment
