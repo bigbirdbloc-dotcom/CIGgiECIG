@@ -177,52 +177,76 @@ app.post('/api/cart', (req, res) => {
 });
 
 app.post('/api/checkout', (req, res) => {
-  const { cart, shipping_method, state, zip, payment_provider } = req.body;
-  
-  // Validate state
-  if (!SHIP_STATES.includes(state)) {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const { cart, shipping_method } = body;
+  const state = typeof body.state === 'string' ? body.state.trim().toUpperCase() : '';
+  const zip = typeof body.zip === 'string' ? body.zip.trim() : '';
+
+  // Never trust client-supplied prices, totals, payment providers, or product fields.
+  if (!Array.isArray(cart) || cart.length === 0 || cart.length > 50) {
+    return res.status(400).json({ error: 'Cart must contain between 1 and 50 items' });
+  }
+  if (!['shipping', 'local'].includes(shipping_method)) {
+    return res.status(400).json({ error: 'Invalid shipping method' });
+  }
+  if (!/^[A-Z]{2}$/.test(state) || !SHIP_STATES.includes(state)) {
     return res.status(403).json({ error: 'Shipping to this state not available' });
   }
-  
-  // Local delivery ZIP check
+  if (!/^\d{5}$/.test(zip)) {
+    return res.status(400).json({ error: 'A valid 5-digit ZIP code is required' });
+  }
   if (shipping_method === 'local' && !LOCAL_ZIPS.includes(zip)) {
     return res.status(403).json({ error: 'Local delivery not available in this ZIP' });
   }
-  
-  // Calculate total
-  let subtotal = 0;
-  cart.forEach(item => {
-    const product = getProducts().find(p => p.id === item.id);
-    subtotal += product.price * item.qty;
-  });
-  
-  const tax = subtotal * TAX_RATE;
-  const shipping = shipping_method === 'local' ? LOCAL_FEE / 100 : 8.0;
-  const total = subtotal + tax + shipping;
-  
-  // Create order
+
+  const products = getProducts();
+  const normalizedCart = [];
+  let subtotalCents = 0;
+  for (const item of cart) {
+    if (!item || typeof item !== 'object' || typeof item.id !== 'string' ||
+        !Number.isSafeInteger(item.qty) || item.qty < 1 || item.qty > 99) {
+      return res.status(400).json({ error: 'Each cart item needs a product ID and quantity from 1 to 99' });
+    }
+    const product = products.find(p => p.id === item.id && p.published === true);
+    if (!product || !Number.isFinite(product.price) || product.price < 0) {
+      return res.status(400).json({ error: 'Cart contains an unavailable product' });
+    }
+    subtotalCents += Math.round(product.price * 100) * item.qty;
+    if (!Number.isSafeInteger(subtotalCents)) {
+      return res.status(400).json({ error: 'Cart total is out of range' });
+    }
+    normalizedCart.push({ id: product.id, qty: item.qty });
+  }
+
+  const taxCents = Math.round(subtotalCents * TAX_RATE);
+  const shippingCents = shipping_method === 'local' ? Math.round(LOCAL_FEE) : 800;
+  const totalCents = subtotalCents + taxCents + shippingCents;
+  if (![subtotalCents, taxCents, shippingCents, totalCents].every(Number.isSafeInteger) ||
+      subtotalCents < 0 || taxCents < 0 || shippingCents < 0 || totalCents < 0) {
+    return res.status(400).json({ error: 'Unable to calculate a valid order total' });
+  }
+
   const order = {
     id: crypto.randomBytes(8).toString('hex'),
     timestamp: new Date().toISOString(),
-    cart,
+    cart: normalizedCart,
     shipping_method,
     state,
     zip,
-    subtotal,
-    tax,
-    shipping,
-    total,
-    payment_provider,
+    subtotal: subtotalCents / 100,
+    tax: taxCents / 100,
+    shipping: shippingCents / 100,
+    total: totalCents / 100,
+    payment_provider: PAY_PROVIDER,
     status: 'pending_payment',
     id_verified: false
   };
-  
+
   const orders = readJSON(ORDERS_FILE, []);
   orders.push(order);
   writeJSON(ORDERS_FILE, orders);
   auditLog('order_created', { order_id: order.id, total: order.total });
-  
-  res.json({ order, payment_url: `/payment/${order.id}` });
+  return res.status(201).json({ order, payment_url: '/payment/' + order.id });
 });
 
 // ========== PAYMENT GATEWAY ROUTING ==========
