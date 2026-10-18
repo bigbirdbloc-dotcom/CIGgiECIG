@@ -268,7 +268,14 @@ app.get('/payment/:order_id', (req, res) => {
     if (!process.env.CYBS_ACCESS_KEY || !process.env.CYBS_PROFILE_ID || !process.env.CYBS_SECRET_KEY) {
       return res.status(503).send('Payment is temporarily unavailable. Please contact the store.');
     }
-    const { createSignature, sortSignedFields } = require('./extra');
+    const paymentUrl = process.env.CYBS_PAYMENT_URL || 'https://testsecureacceptance.cybersource.com/pay';
+    let parsedPaymentUrl;
+    try { parsedPaymentUrl = new URL(paymentUrl); } catch { return res.status(503).send('Payment configuration is invalid.'); }
+    if (parsedPaymentUrl.protocol !== 'https:' || parsedPaymentUrl.pathname !== '/pay' ||
+        !['testsecureacceptance.cybersource.com', 'secureacceptance.cybersource.com'].includes(parsedPaymentUrl.hostname)) {
+      return res.status(503).send('Payment configuration is invalid.');
+    }
+    const { createSignature } = require('./extra');
     const fields = {
       access_key: process.env.CYBS_ACCESS_KEY,
       profile_id: process.env.CYBS_PROFILE_ID,
@@ -278,15 +285,13 @@ app.get('/payment/:order_id', (req, res) => {
       currency: 'USD'
     };
     fields.signature = createSignature(fields, process.env.CYBS_SECRET_KEY, fields.signed_field_names);
-    
-    res.send(`<!DOCTYPE html>
-<html>
-<head><title>Payment</title><link rel="stylesheet" href="/styles.css"></head>
-<body>
-  <div class="shell">
-    <h1>Payment: ${order.id}</h1>
-    <p>Total: $${order.total.toFixed(2)}</p>
-    <form action="https://testsecureacceptance.cybersource.com/pay" method="POST">\n      ${Object.entries(fields).map(([k, v]) => `<input type="hidden" name="${k}" value="${v}">`).join('\\n    ')}\n      <button type="submit" class="cta">Pay with CyberSource</button>\n    </form>\n  </div>\n</body>\n</html>`);
+    const inputs = Object.entries(fields).map(([key, value]) => {
+      const safe = String(value).replace(/[&<>\"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' })[character]);
+      return '<input type="hidden" name="' + key + '" value="' + safe + '">';
+    }).join('\n      ');
+    return res.send('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Secure payment</title><link rel="stylesheet" href="/styles.css"></head>' +
+      '<body><main class="shell"><section class="admin-card"><h1>Secure payment</h1><p>Order ' + order.id + '</p><p>Total: $' + order.total.toFixed(2) + '</p>' +
+      '<form action="' + paymentUrl + '" method="POST">' + inputs + '<button type="submit" class="cta">Continue to CyberSource</button></form></section></main></body></html>');
   } else if (order.payment_provider === 'authorize') {
     res.send(`<h1>Authorize.Net Payment (Coming Soon)</h1><p>Order: ${order.id}</p>`);
   }
