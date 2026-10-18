@@ -29,7 +29,8 @@ jobs:
           test -s site/index.html
           test -s site/styles.css
           grep -q "CIGgiECIG" site/index.html
-          grep -q "neon" site/styles.css
+          grep -q "neon" site/index.html
+          grep -q -- "--pink" site/styles.css
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload Pages artifact
