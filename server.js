@@ -66,7 +66,7 @@ function initProducts() {
   writeJSON(PRODUCTS_FILE, process.env.NODE_ENV === 'production' && process.env.SEED_DEMO_PRODUCTS !== 'true' ? [] : demoProducts);
 }
 function requireAdult(req, res, next) {
-  if (req.path === '/verify' || req.path === '/health' || req.path.startsWith('/admin') || req.path.startsWith('/api/admin')) return next();
+  if (req.path === '/verify' || req.path === '/health' || req.path.startsWith('/admin') || req.path.startsWith('/api/admin') || req.path.startsWith('/webhooks/')) return next();
   if (req.cookies && req.cookies.age_verified === 'yes') return next();
   if (req.path.startsWith('/api/')) return res.status(403).json({ error: 'Age verification required' });
   return res.redirect('/verify');
