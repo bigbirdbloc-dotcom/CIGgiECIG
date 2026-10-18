@@ -82,7 +82,7 @@ app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'deny', index
 
 // Age verification middleware
 function requireAdult(req, res, next) {
-  if (req.path === '/verify' || req.path.startsWith('/admin/') || req.path.startsWith('/api/admin/') || req.path === '/admin') {
+  if (req.path === '/verify' || req.path === '/health' || req.path.startsWith('/admin/') || req.path.startsWith('/api/admin/') || req.path === '/admin') {
     return next();
   }
   const ageToken = req.cookies.age_verified;
@@ -409,7 +409,15 @@ app.get('/admin', (req, res) => {
   </script></body></html>`);
 });
 
-app.get('/api/admin/orders', requireAdmin, (req, res) => {\n  res.json(readJSON(ORDERS_FILE, []));\n});\n\napp.get('/api/admin/inventory', requireAdmin, (req, res) => {\n  res.json(getProducts());\n});\n\napp.post('/api/admin/product/:id', requireAdmin, (req, res) => {
+app.get('/api/admin/orders', requireAdmin, (req, res) => {
+  return res.json(readJSON(ORDERS_FILE, []));
+});
+
+app.get('/api/admin/inventory', requireAdmin, (req, res) => {
+  return res.json(getProducts());
+});
+
+app.post('/api/admin/product/:id', requireAdmin, (req, res) => {
   const products = getProducts();
   const product = products.find(p => p.id === req.params.id);
   if (!product) return res.status(404).json({ error: 'Product not found' });
@@ -425,9 +433,7 @@ app.get('/api/admin/orders', requireAdmin, (req, res) => {\n  res.json(readJSON(
     if (key in updates && (typeof updates[key] !== 'number' || !Number.isFinite(updates[key]) || updates[key] < 0 || updates[key] > 1000000)) return res.status(400).json({ error: key + ' must be a finite non-negative number' });
   }
   if ('stock' in updates && (!Number.isSafeInteger(updates.stock) || updates.stock < 0 || updates.stock > 100000000)) return res.status(400).json({ error: 'stock must be a non-negative integer' });
-  for (const key of ['published', 'active']) {
-    if (key in updates && typeof updates[key] !== 'boolean') return res.status(400).json({ error: key + ' must be a boolean' });
-  }
+  for (const key of ['published', 'active']) if (key in updates && typeof updates[key] !== 'boolean') return res.status(400).json({ error: key + ' must be a boolean' });
   if ('image' in updates && !/^\/[a-zA-Z0-9/_\-.]+$/.test(updates.image)) return res.status(400).json({ error: 'image must be a local asset path' });
   Object.assign(product, updates);
   writeJSON(PRODUCTS_FILE, products);
@@ -435,4 +441,23 @@ app.get('/api/admin/orders', requireAdmin, (req, res) => {\n  res.json(readJSON(
   return res.json({ ok: true, product });
 });
 
-// ========== HOMEPAGE ==========\napp.get('/', (req, res) => {\n  res.sendFile(path.join(__dirname, 'public', 'index.html'));\n});\n\n// ========== ADAPTER STATUS ==========\napp.get('/api/adapters', (req, res) => {\n  res.json({\n    persona: PersonaAdapter.getStatus(),\n    veriff: VeriffAdapter.getStatus(),\n    payment: PaymentAdapter.getAdapterStatus()\n  });\n});\n\n// ========== HEALTH CHECK ==========\napp.get('/health', (req, res) => {\n  res.json({\n    status: 'ok',\n    timestamp: new Date().toISOString(),\n    uptime: process.uptime(),\n    env: {\n      admin_auth_configured: adminAuth.isConfigured(),\n      pay_provider: PAY_PROVIDER,\n      ship_states: SHIP_STATES,\n      local_zips: LOCAL_ZIPS\n    }\n  });\n});\n\n// ========== START SERVER ==========\ninitProducts();\napp.listen(PORT, () => {\n  console.log(`\n🎨 CIGgiECIG Storefront Running\n`);\n  console.log(`🌐 http://localhost:${PORT}`);\n  console.log(`📊 Admin: http://localhost:${PORT}/admin`);\n  console.log(`🔧 Health: http://localhost:${PORT}/health`);\n  console.log(`\n✅ Age gate enabled`);\n  console.log(`✅ Payment adapters active`);\n  console.log(`✅ Webhook listeners ready`);\n  console.log(`\n`);\n  auditLog('server_start', { port: PORT, provider: PAY_PROVIDER });\n});\n\nmodule.exports = app;\n
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+
+app.get('/api/adapters', (req, res) => {
+  return res.json({ persona: PersonaAdapter.getStatus(), veriff: VeriffAdapter.getStatus(), payment: PaymentAdapter.getAdapterStatus() });
+});
+
+app.get('/health', (req, res) => {
+  return res.json({ status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime(), checks: { admin_auth_configured: adminAuth.isConfigured() } });
+});
+
+initProducts();
+const server = app.listen(PORT, () => {
+  console.log('CIGgiECIG storefront listening on port ' + PORT);
+  auditLog('server_start', { port: PORT, provider: PAY_PROVIDER });
+});
+server.requestTimeout = 30000;
+server.headersTimeout = 35000;
+server.keepAliveTimeout = 5000;
+
+module.exports = app;
