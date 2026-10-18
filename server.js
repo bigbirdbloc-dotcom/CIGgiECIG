@@ -381,74 +381,35 @@ app.post('/admin/logout', (_req, res) => {
 
 app.get('/admin', (req, res) => {
   if (!adminAuth.verifyToken(req.cookies && req.cookies.admin_auth)) {
-    return res.status(200).send(`<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>CIGgiECIG Admin Login</title><link rel="stylesheet" href="/styles.css"></head>
-<body><main class="shell"><section class="admin-card" style="max-width:520px;margin:10vh auto">
-<p class="eyebrow">RESTRICTED ACCESS</p><h1 class="section-title">ADMIN LOGIN</h1><p>Sign in with your configured administrator password.</p>
-<form id="login-form" class="checkout-form"><label><span>Admin password</span><input type="password" name="password" autocomplete="current-password" required></label><button class="cta" type="submit">Sign in</button><p id="login-message" role="status" aria-live="polite"></p></form>
-</section></main><script>
-document.getElementById('login-form').addEventListener('submit', async function(event) {
-  event.preventDefault();
-  const message = document.getElementById('login-message');
-  const button = this.querySelector('button');
-  button.disabled = true;
-  message.textContent = 'Signing in…';
-  try {
-    const response = await fetch('/admin/login', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: new FormData(this).get('password') }) });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Login failed');
-    window.location.assign('/admin');
-  } catch (error) { message.textContent = error.message || 'Unable to sign in'; }
-  finally { button.disabled = false; }
-});
-</script></body></html>`);
+    return res.status(200).send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CIGgiECIG Admin Login</title><link rel="stylesheet" href="/styles.css"></head>
+    <body><main class="shell"><section class="admin-card" style="max-width:520px;margin:10vh auto"><p class="eyebrow">RESTRICTED ACCESS</p><h1 class="section-title">ADMIN LOGIN</h1><p>Sign in with your configured administrator password.</p>
+    <form id="login-form" class="checkout-form"><label><span>Admin password</span><input type="password" name="password" autocomplete="current-password" required></label><button class="cta" type="submit">Sign in</button><p id="login-message" role="status" aria-live="polite"></p></form></section></main>
+    <script>
+    document.getElementById('login-form').addEventListener('submit', async function(event) {
+      event.preventDefault(); const message = document.getElementById('login-message'); const button = this.querySelector('button'); button.disabled = true;
+      try { const response = await fetch('/admin/login', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: new FormData(this).get('password') }) });
+        const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Login failed'); window.location.assign('/admin');
+      } catch (error) { message.textContent = error.message || 'Unable to sign in'; } finally { button.disabled = false; }
+    });
+    </script></body></html>`);
   }
-  res.send(`<!DOCTYPE html>
-<html>
-<head>
-  <title>CIGgiECIG Admin</title>
-  <link rel="stylesheet" href="/styles.css">
-  <style>
-    .admin-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    .admin-table th, .admin-table td { padding: 12px; text-align: left; border: 1px solid #333; }
-    .admin-table th { background: rgba(255,43,214,0.2); color: #00f0ff; }
-  </style>
-</head>
-<body>
-  <div class="shell">
-    <h1>Admin Dashboard</h1>
-    <section class="admin-panel">
-      <div class="admin-card">
-        <h3>Orders</h3>
-        <table class="admin-table">
-          <thead>
-            <tr><th>ID</th><th>Total</th><th>Status</th><th>State</th></tr>
-          </thead>
-          <tbody id="orders-tbody"></tbody>
-        </table>
-      </div>
-      <div class="admin-card">
-        <h3>Inventory</h3>
-        <table class="admin-table">
-          <thead>
-            <tr><th>Product</th><th>Stock</th><th>Price</th><th>FDA</th></tr>
-          </thead>
-          <tbody id="inventory-tbody"></tbody>
-        </table>
-      </div>
-      <div class="admin-card">
-        <h3>Adapter Status</h3>
-        <ul>
-          <li><span class="pill ok">Persona</span> Verified</li>
-          <li><span class="pill ok">Veriff</span> Verified</li>
-          <li><span class="pill ok">CyberSource</span> Verified</li>
-        </ul>
-      </div>
-    </section>
-  </div>
-  <script>
-    fetch('/api/admin/orders').then(r => r.json()).then(orders => {
-      document.getElementById('orders-tbody').innerHTML = orders.map(o => \n        `<tr><td>\${o.id}</td><td>\\$\${o.total.toFixed(2)}</td><td>\${o.status}</td><td>\${o.state}</td></tr>`\n      ).join('');\n    });\n    fetch('/api/admin/inventory').then(r => r.json()).then(products => {\n      document.getElementById('inventory-tbody').innerHTML = products.map(p => \n        `<tr><td>\${p.name}</td><td>\${p.stock}</td><td>\\$\${p.price.toFixed(2)}</td><td>\${p.fda}</td></tr>`\n      ).join('');\n    });\n  </script>\n</body>\n</html>\n`);\n});\n\napp.get('/api/admin/orders', requireAdmin, (req, res) => {\n  res.json(readJSON(ORDERS_FILE, []));\n});\n\napp.get('/api/admin/inventory', requireAdmin, (req, res) => {\n  res.json(getProducts());\n});\n\napp.post('/api/admin/product/:id', requireAdmin, (req, res) => {
+  return res.send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CIGgiECIG Admin</title><link rel="stylesheet" href="/styles.css">
+  <style>.admin-table{width:100%;border-collapse:collapse;margin-top:20px}.admin-table th,.admin-table td{padding:12px;text-align:left;border:1px solid #333}.admin-table th{color:#00f0ff}.admin-section{overflow-x:auto}</style></head><body><main class="shell">
+  <header class="topbar"><div class="brand">CIGgiECIG / ADMIN</div><button id="logout" type="button" class="ghost">Sign out</button></header>
+  <section class="admin-panel"><article class="admin-card admin-section"><h2>Orders</h2><table class="admin-table"><thead><tr><th>Order</th><th>Total</th><th>Status</th><th>State</th></tr></thead><tbody id="orders-tbody"></tbody></table></article>
+  <article class="admin-card admin-section"><h2>Inventory</h2><table class="admin-table"><thead><tr><th>Product</th><th>Stock</th><th>Price</th><th>Published</th></tr></thead><tbody id="inventory-tbody"></tbody></table></article></section>
+  <p id="admin-message" role="status" aria-live="polite"></p></main><script>
+  function cell(row, value) { const td = document.createElement('td'); td.textContent = value == null ? '' : String(value); row.appendChild(td); }
+  async function loadTable(url, target, fields) { const response = await fetch(url, { credentials: 'same-origin' }); if (!response.ok) throw new Error('Admin data request failed (' + response.status + ')'); const rows = await response.json(); const body = document.getElementById(target); body.replaceChildren();
+    rows.forEach(item => { const tr = document.createElement('tr'); fields.forEach(field => cell(tr, field(item))); body.appendChild(tr); }); }
+  Promise.all([loadTable('/api/admin/orders','orders-tbody',[o=>o.id,o=>'$'+Number(o.total).toFixed(2),o=>o.status,o=>o.state]),
+    loadTable('/api/admin/inventory','inventory-tbody',[p=>p.name,p=>p.stock,p=>'$'+Number(p.price).toFixed(2),p=>p.published === true ? 'Yes' : 'No'])])
+    .catch(error => { document.getElementById('admin-message').textContent = error.message; });
+  document.getElementById('logout').addEventListener('click', async () => { await fetch('/admin/logout', { method: 'POST', credentials: 'same-origin' }); window.location.assign('/admin'); });
+  </script></body></html>`);
+});
+
+app.get('/api/admin/orders', requireAdmin, (req, res) => {\n  res.json(readJSON(ORDERS_FILE, []));\n});\n\napp.get('/api/admin/inventory', requireAdmin, (req, res) => {\n  res.json(getProducts());\n});\n\napp.post('/api/admin/product/:id', requireAdmin, (req, res) => {
   const products = getProducts();
   const product = products.find(p => p.id === req.params.id);
   if (!product) return res.status(404).json({ error: 'Product not found' });
