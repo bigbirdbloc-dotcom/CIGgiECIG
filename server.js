@@ -66,10 +66,19 @@ function auditLog(action, details) {
 }
 
 // ========== MIDDLEWARE ==========
-app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
-app.use(express.urlencoded({ extended: false, verify: (req, res, buf) => { req.rawBody = buf; } }));
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  if (process.env.NODE_ENV === 'production') res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  next();
+});
+app.use(express.json({ limit: '32kb', verify: (req, res, buf) => { req.rawBody = buf; } }));
+app.use(express.urlencoded({ extended: false, limit: '32kb', verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(cookieParser());
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'deny', index: false, maxAge: process.env.NODE_ENV === 'production' ? '1h' : 0 }));
 
 // Age verification middleware
 function requireAdult(req, res, next) {
@@ -256,13 +265,16 @@ app.get('/payment/:order_id', (req, res) => {
   if (!order) return res.status(404).send('Order not found');
   
   if (order.payment_provider === 'cybersource') {
+    if (!process.env.CYBS_ACCESS_KEY || !process.env.CYBS_PROFILE_ID || !process.env.CYBS_SECRET_KEY) {
+      return res.status(503).send('Payment is temporarily unavailable. Please contact the store.');
+    }
     const { createSignature, sortSignedFields } = require('./extra');
     const fields = {
       access_key: process.env.CYBS_ACCESS_KEY,
       profile_id: process.env.CYBS_PROFILE_ID,
       transaction_uuid: order.id,
       signed_field_names: 'access_key,profile_id,transaction_uuid,amount,currency,signed_field_names',
-      amount: (order.total * 100).toFixed(0),
+      amount: order.total.toFixed(2),
       currency: 'USD'
     };
     fields.signature = createSignature(fields, process.env.CYBS_SECRET_KEY, fields.signed_field_names);
@@ -281,17 +293,33 @@ app.get('/payment/:order_id', (req, res) => {
 });
 
 app.post('/webhooks/cybersource', (req, res) => {
-  const { transaction_id, decision } = req.body;
-  const orders = readJSON(ORDERS_FILE, []);
-  const order = orders.find(o => o.id === transaction_id);
-  if (!order) return res.status(404).json({ error: 'Order not found' });
-  
-  if (decision === 'ACCEPT') {
-    order.status = 'paid';
-    writeJSON(ORDERS_FILE, orders);
-    auditLog('payment_received', { order_id: order.id });
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const signedFields = typeof body.signed_field_names === 'string' ? body.signed_field_names : '';
+  const signature = typeof body.signature === 'string' ? body.signature : '';
+  if (!process.env.CYBS_SECRET_KEY || !signedFields || !signature ||
+      !PaymentAdapter.verifyCyberSource(body, process.env.CYBS_SECRET_KEY, signedFields, signature)) {
+    return res.status(401).json({ error: 'Invalid payment notification signature' });
   }
-  res.json({ status: 'received' });
+  const transactionId = body.req_transaction_uuid || body.transaction_uuid || body.transaction_id;
+  const orders = readJSON(ORDERS_FILE, []);
+  const order = orders.find(item => item.id === transactionId);
+  if (!order) return res.status(404).json({ error: 'Order not found' });
+  if (body.decision === 'ACCEPT') {
+    if (String(body.req_amount || body.amount || '') !== order.total.toFixed(2)) {
+      return res.status(400).json({ error: 'Payment amount does not match order total' });
+    }
+    if (order.status !== 'paid') {
+      order.status = 'paid';
+      order.paid_at = new Date().toISOString();
+      writeJSON(ORDERS_FILE, orders);
+      auditLog('payment_received', { order_id: order.id });
+    }
+  } else {
+    order.status = 'payment_declined';
+    writeJSON(ORDERS_FILE, orders);
+    auditLog('payment_declined', { order_id: order.id });
+  }
+  return res.json({ status: 'received' });
 });
 
 // ========== PERSONA WEBHOOK ==========
@@ -392,4 +420,30 @@ app.get('/admin', requireAdmin, (req, res) => {
   </div>
   <script>
     fetch('/api/admin/orders').then(r => r.json()).then(orders => {
-      document.getElementById('orders-tbody').innerHTML = orders.map(o => \n        \`<tr><td>\${o.id}</td><td>\\$\${o.total.toFixed(2)}</td><td>\${o.status}</td><td>\${o.state}</td></tr>\`\n      ).join('');\n    });\n    fetch('/api/admin/inventory').then(r => r.json()).then(products => {\n      document.getElementById('inventory-tbody').innerHTML = products.map(p => \n        \`<tr><td>\${p.name}</td><td>\${p.stock}</td><td>\\$\${p.price.toFixed(2)}</td><td>\${p.fda}</td></tr>\`\n      ).join('');\n    });\n  </script>\n</body>\n</html>\n`);\n});\n\napp.get('/api/admin/orders', requireAdmin, (req, res) => {\n  res.json(readJSON(ORDERS_FILE, []));\n});\n\napp.get('/api/admin/inventory', requireAdmin, (req, res) => {\n  res.json(getProducts());\n});\n\napp.post('/api/admin/product/:id', requireAdmin, (req, res) => {\n  const products = getProducts();\n  const product = products.find(p => p.id === req.params.id);\n  if (!product) return res.status(404).json({ error: 'Product not found' });\n  Object.assign(product, req.body);\n  writeJSON(PRODUCTS_FILE, products);\n  auditLog('product_updated', { product_id: req.params.id });\n  res.json({ ok: true });\n});\n\n// ========== HOMEPAGE ==========\napp.get('/', (req, res) => {\n  res.sendFile(path.join(__dirname, 'public', 'index.html'));\n});\n\n// ========== ADAPTER STATUS ==========\napp.get('/api/adapters', (req, res) => {\n  res.json({\n    persona: PersonaAdapter.getStatus(),\n    veriff: VeriffAdapter.getStatus(),\n    payment: PaymentAdapter.getAdapterStatus()\n  });\n});\n\n// ========== HEALTH CHECK ==========\napp.get('/health', (req, res) => {\n  res.json({\n    status: 'ok',\n    timestamp: new Date().toISOString(),\n    uptime: process.uptime(),\n    env: {\n      admin_auth_configured: adminAuth.isConfigured(),\n      pay_provider: PAY_PROVIDER,\n      ship_states: SHIP_STATES,\n      local_zips: LOCAL_ZIPS\n    }\n  });\n});\n\n// ========== START SERVER ==========\ninitProducts();\napp.listen(PORT, () => {\n  console.log(`\n🎨 CIGgiECIG Storefront Running\n`);\n  console.log(`🌐 http://localhost:${PORT}`);\n  console.log(`📊 Admin: http://localhost:${PORT}/admin`);\n  console.log(`🔧 Health: http://localhost:${PORT}/health`);\n  console.log(`\n✅ Age gate enabled`);\n  console.log(`✅ Payment adapters active`);\n  console.log(`✅ Webhook listeners ready`);\n  console.log(`\n`);\n  auditLog('server_start', { port: PORT, provider: PAY_PROVIDER });\n});\n\nmodule.exports = app;\n
+      document.getElementById('orders-tbody').innerHTML = orders.map(o => \n        \`<tr><td>\${o.id}</td><td>\\$\${o.total.toFixed(2)}</td><td>\${o.status}</td><td>\${o.state}</td></tr>\`\n      ).join('');\n    });\n    fetch('/api/admin/inventory').then(r => r.json()).then(products => {\n      document.getElementById('inventory-tbody').innerHTML = products.map(p => \n        \`<tr><td>\${p.name}</td><td>\${p.stock}</td><td>\\$\${p.price.toFixed(2)}</td><td>\${p.fda}</td></tr>\`\n      ).join('');\n    });\n  </script>\n</body>\n</html>\n`);\n});\n\napp.get('/api/admin/orders', requireAdmin, (req, res) => {\n  res.json(readJSON(ORDERS_FILE, []));\n});\n\napp.get('/api/admin/inventory', requireAdmin, (req, res) => {\n  res.json(getProducts());\n});\n\napp.post('/api/admin/product/:id', requireAdmin, (req, res) => {
+  const products = getProducts();
+  const product = products.find(p => p.id === req.params.id);
+  if (!product) return res.status(404).json({ error: 'Product not found' });
+  const updates = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : null;
+  if (!updates || !Object.keys(updates).length) return res.status(400).json({ error: 'A non-empty product update object is required' });
+  const allowed = ['name', 'flavor', 'description', 'cost', 'price', 'fda', 'fda_order_number', 'stock', 'published', 'active', 'category', 'image', 'badge'];
+  const unknown = Object.keys(updates).filter(key => !allowed.includes(key));
+  if (unknown.length) return res.status(400).json({ error: 'Unsupported product fields', fields: unknown });
+  for (const key of ['name', 'flavor', 'description', 'fda', 'fda_order_number', 'category', 'image', 'badge']) {
+    if (key in updates && (typeof updates[key] !== 'string' || updates[key].length > 500)) return res.status(400).json({ error: key + ' must be a string of at most 500 characters' });
+  }
+  for (const key of ['cost', 'price']) {
+    if (key in updates && (typeof updates[key] !== 'number' || !Number.isFinite(updates[key]) || updates[key] < 0 || updates[key] > 1000000)) return res.status(400).json({ error: key + ' must be a finite non-negative number' });
+  }
+  if ('stock' in updates && (!Number.isSafeInteger(updates.stock) || updates.stock < 0 || updates.stock > 100000000)) return res.status(400).json({ error: 'stock must be a non-negative integer' });
+  for (const key of ['published', 'active']) {
+    if (key in updates && typeof updates[key] !== 'boolean') return res.status(400).json({ error: key + ' must be a boolean' });
+  }
+  if ('image' in updates && !/^\/[a-zA-Z0-9/_\-.]+$/.test(updates.image)) return res.status(400).json({ error: 'image must be a local asset path' });
+  Object.assign(product, updates);
+  writeJSON(PRODUCTS_FILE, products);
+  auditLog('product_updated', { product_id: req.params.id, fields: Object.keys(updates) });
+  return res.json({ ok: true, product });
+});
+
+// ========== HOMEPAGE ==========\napp.get('/', (req, res) => {\n  res.sendFile(path.join(__dirname, 'public', 'index.html'));\n});\n\n// ========== ADAPTER STATUS ==========\napp.get('/api/adapters', (req, res) => {\n  res.json({\n    persona: PersonaAdapter.getStatus(),\n    veriff: VeriffAdapter.getStatus(),\n    payment: PaymentAdapter.getAdapterStatus()\n  });\n});\n\n// ========== HEALTH CHECK ==========\napp.get('/health', (req, res) => {\n  res.json({\n    status: 'ok',\n    timestamp: new Date().toISOString(),\n    uptime: process.uptime(),\n    env: {\n      admin_auth_configured: adminAuth.isConfigured(),\n      pay_provider: PAY_PROVIDER,\n      ship_states: SHIP_STATES,\n      local_zips: LOCAL_ZIPS\n    }\n  });\n});\n\n// ========== START SERVER ==========\ninitProducts();\napp.listen(PORT, () => {\n  console.log(`\n🎨 CIGgiECIG Storefront Running\n`);\n  console.log(`🌐 http://localhost:${PORT}`);\n  console.log(`📊 Admin: http://localhost:${PORT}/admin`);\n  console.log(`🔧 Health: http://localhost:${PORT}/health`);\n  console.log(`\n✅ Age gate enabled`);\n  console.log(`✅ Payment adapters active`);\n  console.log(`✅ Webhook listeners ready`);\n  console.log(`\n`);\n  auditLog('server_start', { port: PORT, provider: PAY_PROVIDER });\n});\n\nmodule.exports = app;\n
