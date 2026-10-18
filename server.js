@@ -168,7 +168,7 @@ function initProducts() {
     { id: 'pulse-pod', name: 'PULSE POD', flavor: 'Grape Surge', cost: 14.6, price: 20.44, fda: 'FDA-2024-012350', stock: 35, published: true }
   ];
   if (!fs.existsSync(PRODUCTS_FILE)) {
-    writeJSON(PRODUCTS_FILE, products);
+    writeJSON(PRODUCTS_FILE, process.env.NODE_ENV === 'production' && process.env.SEED_DEMO_PRODUCTS !== 'true' ? [] : products);
   }
 }
 
@@ -397,13 +397,158 @@ app.get('/admin', (req, res) => {
   <style>.admin-table{width:100%;border-collapse:collapse;margin-top:20px}.admin-table th,.admin-table td{padding:12px;text-align:left;border:1px solid #333}.admin-table th{color:#00f0ff}.admin-section{overflow-x:auto}</style></head><body><main class="shell">
   <header class="topbar"><div class="brand">CIGgiECIG / ADMIN</div><button id="logout" type="button" class="ghost">Sign out</button></header>
   <section class="admin-panel"><article class="admin-card admin-section"><h2>Orders</h2><table class="admin-table"><thead><tr><th>Order</th><th>Total</th><th>Status</th><th>State</th></tr></thead><tbody id="orders-tbody"></tbody></table></article>
-  <article class="admin-card admin-section"><h2>Inventory</h2><table class="admin-table"><thead><tr><th>Product</th><th>Stock</th><th>Price</th><th>Published</th></tr></thead><tbody id="inventory-tbody"></tbody></table></article></section>
+  <article class="admin-card admin-section"><h2>Inventory</h2><form id="product-form" class="checkout-form"><label><span>Name</span><input name="name" maxlength="120" required></label><label><span>Flavor / variant</span><input name="flavor" maxlength="120"></label><label><span>Description</span><input name="description" maxlength="500"></label><label><span>Price (USD)</span><input name="price" type="number" min="0" max="1000000" step="0.01" required></label><label><span>Cost (USD)</span><input name="cost" type="number" min="0" max="1000000" step="0.01" required></label><label><span>Stock</span><input name="stock" type="number" min="0" max="100000000" step="1" required></label><label><span>Category</span><input name="category" maxlength="80" value="vape"></label><label><span>Product authorization / order reference</span><input name="fda_order_number" maxlength="200" required></label><button class="cta" type="submit">Create draft product</button></form><p id="product-message" role="status" aria-live="polite"></p><table class="admin-table"><thead><tr><th>Product</th><th>Stock</th><th>Price</th><th>Published</th><th>Action</th></tr></thead><tbody id="inventory-tbody"></tbody></table></article></section>
   <p id="admin-message" role="status" aria-live="polite"></p></main><script>
   function cell(row, value) { const td = document.createElement('td'); td.textContent = value == null ? '' : String(value); row.appendChild(td); }
   async function loadTable(url, target, fields) { const response = await fetch(url, { credentials: 'same-origin' }); if (!response.ok) throw new Error('Admin data request failed (' + response.status + ')'); const rows = await response.json(); const body = document.getElementById(target); body.replaceChildren();
     rows.forEach(item => { const tr = document.createElement('tr'); fields.forEach(field => cell(tr, field(item))); body.appendChild(tr); }); }
-  Promise.all([loadTable('/api/admin/orders','orders-tbody',[o=>o.id,o=>'$'+Number(o.total).toFixed(2),o=>o.status,o=>o.state]),
-    loadTable('/api/admin/inventory','inventory-tbody',[p=>p.name,p=>p.stock,p=>'$'+Number(p.price).toFixed(2),p=>p.published === true ? 'Yes' : 'No'])])
+  async function loadInventory() { const response = await fetch('/api/admin/inventory', { credentials: 'same-origin' }); if (!response.ok) throw new Error('Inventory request failed (' + response.status + ')'); const products = await response.json(); const body = document.getElementById('inventory-tbody'); body.replaceChildren();
+    products.forEach(product => { const tr = document.createElement('tr'); [product.name, product.stock, '
+  document.getElementById('logout').addEventListener('click', async () => { await fetch('/admin/logout', { method: 'POST', credentials: 'same-origin' }); window.location.assign('/admin'); });
+  </script></body></html>`);
+});
+
+app.get('/api/admin/orders', requireAdmin, (req, res) => {
+  return res.json(readJSON(ORDERS_FILE, []));
+});
+
+app.get('/api/admin/inventory', requireAdmin, (req, res) => {
+  return res.json(getProducts());
+});
+
+app.post('/api/admin/product', requireAdmin, (req, res) => {
+  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  const price = body.price;
+  const cost = body.cost;
+  const stock = body.stock;
+  if (!name || name.length > 120) return res.status(400).json({ error: 'Product name is required and must be at most 120 characters' });
+  if (typeof price !== 'number' || !Number.isFinite(price) || price < 0 || price > 1000000) return res.status(400).json({ error: 'Price must be a valid non-negative number' });
+  if (typeof cost !== 'number' || !Number.isFinite(cost) || cost < 0 || cost > 1000000) return res.status(400).json({ error: 'Cost must be a valid non-negative number' });
+  if (!Number.isSafeInteger(stock) || stock < 0 || stock > 100000000) return res.status(400).json({ error: 'Stock must be a non-negative integer' });
+  for (const key of ['flavor', 'description', 'category', 'fda_order_number']) if (body[key] !== undefined && (typeof body[key] !== 'string' || body[key].length > 500)) return res.status(400).json({ error: key + ' must be a string of at most 500 characters' });
+  const products = getProducts();
+  const product = { id: 'sku-' + crypto.randomBytes(6).toString('hex'), name, flavor: body.flavor || '', description: body.description || '', price, cost, stock, category: body.category || 'vape', fda_order_number: body.fda_order_number || '', image: '/tiles/tile-1.svg', published: false, active: false };
+  products.push(product);
+  writeJSON(PRODUCTS_FILE, products);
+  auditLog('product_created', { product_id: product.id });
+  return res.status(201).json({ ok: true, product });
+});
+app.post('/api/admin/product/:id', requireAdmin, (req, res) => {
+  const products = getProducts();
+  const product = products.find(p => p.id === req.params.id);
+  if (!product) return res.status(404).json({ error: 'Product not found' });
+  const updates = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : null;
+  if (!updates || !Object.keys(updates).length) return res.status(400).json({ error: 'A non-empty product update object is required' });
+  const allowed = ['name', 'flavor', 'description', 'cost', 'price', 'fda', 'fda_order_number', 'stock', 'published', 'active', 'category', 'image', 'badge'];
+  const unknown = Object.keys(updates).filter(key => !allowed.includes(key));
+  if (unknown.length) return res.status(400).json({ error: 'Unsupported product fields', fields: unknown });
+  for (const key of ['name', 'flavor', 'description', 'fda', 'fda_order_number', 'category', 'image', 'badge']) {
+    if (key in updates && (typeof updates[key] !== 'string' || updates[key].length > 500)) return res.status(400).json({ error: key + ' must be a string of at most 500 characters' });
+  }
+  for (const key of ['cost', 'price']) {
+    if (key in updates && (typeof updates[key] !== 'number' || !Number.isFinite(updates[key]) || updates[key] < 0 || updates[key] > 1000000)) return res.status(400).json({ error: key + ' must be a finite non-negative number' });
+  }
+  if ('stock' in updates && (!Number.isSafeInteger(updates.stock) || updates.stock < 0 || updates.stock > 100000000)) return res.status(400).json({ error: 'stock must be a non-negative integer' });
+  for (const key of ['published', 'active']) if (key in updates && typeof updates[key] !== 'boolean') return res.status(400).json({ error: key + ' must be a boolean' });
+  if ('image' in updates && !/^\/[a-zA-Z0-9/_\-.]+$/.test(updates.image)) return res.status(400).json({ error: 'image must be a local asset path' });
+  if (updates.published === true && !String(updates.fda_order_number || product.fda_order_number || '').trim()) return res.status(400).json({ error: 'A product authorization/order reference is required before publishing' });
+  Object.assign(product, updates);
+  writeJSON(PRODUCTS_FILE, products);
+  auditLog('product_updated', { product_id: req.params.id, fields: Object.keys(updates) });
+  return res.json({ ok: true, product });
+});
+
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+
+app.get('/api/adapters', (req, res) => {
+  return res.json({ persona: PersonaAdapter.getStatus(), veriff: VeriffAdapter.getStatus(), payment: PaymentAdapter.getAdapterStatus() });
+});
+
+app.get('/health', (req, res) => {
+  return res.json({ status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime(), checks: { admin_auth_configured: adminAuth.isConfigured() } });
+});
+
+initProducts();
+const server = app.listen(PORT, () => {
+  console.log('CIGgiECIG storefront listening on port ' + PORT);
+  auditLog('server_start', { port: PORT, provider: PAY_PROVIDER });
+});
+server.requestTimeout = 30000;
+server.headersTimeout = 35000;
+server.keepAliveTimeout = 5000;
+
+module.exports = app;
+ + Number(product.price).toFixed(2), product.published === true ? 'Yes' : 'No'].forEach(value => cell(tr, value));
+      const td = document.createElement('td'); const button = document.createElement('button'); button.type = 'button'; button.textContent = product.published === true ? 'Unpublish' : 'Publish'; button.addEventListener('click', async () => {
+        try { const update = await fetch('/api/admin/product/' + encodeURIComponent(product.id), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ published: product.published !== true }) });
+          const result = await update.json(); if (!update.ok) throw new Error(result.error || 'Product update failed'); await loadInventory();
+        } catch (error) { document.getElementById('admin-message').textContent = error.message; }
+      }); td.appendChild(button); tr.appendChild(td); body.appendChild(tr); }); }
+  document.getElementById('product-form').addEventListener('submit', async function(event) { event.preventDefault(); const message = document.getElementById('product-message'); const data = new FormData(this);
+    const payload = { name: data.get('name'), flavor: data.get('flavor'), description: data.get('description'), price: Number(data.get('price')), cost: Number(data.get('cost')), stock: Number(data.get('stock')), category: data.get('category'), fda_order_number: data.get('fda_order_number') };
+    try { const response = await fetch('/api/admin/product', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Unable to create product'); this.reset(); message.textContent = 'Draft product created. Review the details before publishing.'; await loadInventory();
+    } catch (error) { message.textContent = error.message; }
+  });
+  Promise.all([loadTable('/api/admin/orders','orders-tbody',[o=>o.id,o=>'
+  document.getElementById('logout').addEventListener('click', async () => { await fetch('/admin/logout', { method: 'POST', credentials: 'same-origin' }); window.location.assign('/admin'); });
+  </script></body></html>`);
+});
+
+app.get('/api/admin/orders', requireAdmin, (req, res) => {
+  return res.json(readJSON(ORDERS_FILE, []));
+});
+
+app.get('/api/admin/inventory', requireAdmin, (req, res) => {
+  return res.json(getProducts());
+});
+
+app.post('/api/admin/product/:id', requireAdmin, (req, res) => {
+  const products = getProducts();
+  const product = products.find(p => p.id === req.params.id);
+  if (!product) return res.status(404).json({ error: 'Product not found' });
+  const updates = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : null;
+  if (!updates || !Object.keys(updates).length) return res.status(400).json({ error: 'A non-empty product update object is required' });
+  const allowed = ['name', 'flavor', 'description', 'cost', 'price', 'fda', 'fda_order_number', 'stock', 'published', 'active', 'category', 'image', 'badge'];
+  const unknown = Object.keys(updates).filter(key => !allowed.includes(key));
+  if (unknown.length) return res.status(400).json({ error: 'Unsupported product fields', fields: unknown });
+  for (const key of ['name', 'flavor', 'description', 'fda', 'fda_order_number', 'category', 'image', 'badge']) {
+    if (key in updates && (typeof updates[key] !== 'string' || updates[key].length > 500)) return res.status(400).json({ error: key + ' must be a string of at most 500 characters' });
+  }
+  for (const key of ['cost', 'price']) {
+    if (key in updates && (typeof updates[key] !== 'number' || !Number.isFinite(updates[key]) || updates[key] < 0 || updates[key] > 1000000)) return res.status(400).json({ error: key + ' must be a finite non-negative number' });
+  }
+  if ('stock' in updates && (!Number.isSafeInteger(updates.stock) || updates.stock < 0 || updates.stock > 100000000)) return res.status(400).json({ error: 'stock must be a non-negative integer' });
+  for (const key of ['published', 'active']) if (key in updates && typeof updates[key] !== 'boolean') return res.status(400).json({ error: key + ' must be a boolean' });
+  if ('image' in updates && !/^\/[a-zA-Z0-9/_\-.]+$/.test(updates.image)) return res.status(400).json({ error: 'image must be a local asset path' });
+  Object.assign(product, updates);
+  writeJSON(PRODUCTS_FILE, products);
+  auditLog('product_updated', { product_id: req.params.id, fields: Object.keys(updates) });
+  return res.json({ ok: true, product });
+});
+
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+
+app.get('/api/adapters', (req, res) => {
+  return res.json({ persona: PersonaAdapter.getStatus(), veriff: VeriffAdapter.getStatus(), payment: PaymentAdapter.getAdapterStatus() });
+});
+
+app.get('/health', (req, res) => {
+  return res.json({ status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime(), checks: { admin_auth_configured: adminAuth.isConfigured() } });
+});
+
+initProducts();
+const server = app.listen(PORT, () => {
+  console.log('CIGgiECIG storefront listening on port ' + PORT);
+  auditLog('server_start', { port: PORT, provider: PAY_PROVIDER });
+});
+server.requestTimeout = 30000;
+server.headersTimeout = 35000;
+server.keepAliveTimeout = 5000;
+
+module.exports = app;
++Number(o.total).toFixed(2),o=>o.status,o=>o.state]), loadInventory()])
     .catch(error => { document.getElementById('admin-message').textContent = error.message; });
   document.getElementById('logout').addEventListener('click', async () => { await fetch('/admin/logout', { method: 'POST', credentials: 'same-origin' }); window.location.assign('/admin'); });
   </script></body></html>`);
