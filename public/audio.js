@@ -117,6 +117,7 @@
         this.hit();
         this.timer = setInterval(() => this.hit(), 150);
         this.setUI(true);
+        document.body.classList.add('beat-active');
         this.animate();
       } catch (error) {
         this.setUI(false, error.message || 'Audio could not start in this browser.');
@@ -138,7 +139,9 @@
       const level = Math.min(1, (sum / this.data.length) / 110);
       const now = performance.now();
       document.documentElement.style.setProperty('--beat-energy', String(0.15 + level * 0.85));
+      document.documentElement.style.setProperty('--edge-opacity', String(0.25 + level * 0.75));
       document.documentElement.style.setProperty('--beat-glow', Math.round(8 + level * 44) + 'px');
+      document.documentElement.style.setProperty('--beat-hue', Math.round(level * 90) + 'deg');
       if (now - this.lastPulse > 250 && level > 0.12) {
         document.body.classList.remove('beat-pulse');
         void document.body.offsetWidth;
