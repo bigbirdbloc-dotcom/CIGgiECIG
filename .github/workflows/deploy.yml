@@ -1,9 +1,10 @@
 name: Deploy CIGgiECIG to GitHub Pages
 
+# Pages deployment is owned by pages.yml (the single on-push deployer).
+# This workflow is retained for manual asset regeneration only, so it no longer
+# runs on every push, fails on the deprecated artifact action, or races pages.yml
+# over the same `github-pages` environment.
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
@@ -12,7 +13,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: github-pages
   cancel-in-progress: false
 
 jobs:
@@ -54,7 +55,7 @@ jobs:
           echo '{ "port": 3000 }' > dist/config.json
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v2
+        uses: actions/upload-pages-artifact@v3
         with:
           path: 'dist/public'
 
@@ -67,7 +68,7 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v2
+        uses: actions/deploy-pages@v4
 
   notify:
     runs-on: ubuntu-latest
